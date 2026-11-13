@@ -66,6 +66,9 @@ db.exec(`
 
 const now = () => new Date().toISOString();
 const readJson = (value) => JSON.parse(value);
+const addDays = (base, days) => new Date(base.getFullYear(), base.getMonth(), base.getDate() + days);
+const localDate = (date) => `${String(date.getDate()).padStart(2, "0")}/${String(date.getMonth() + 1).padStart(2, "0")}/${date.getFullYear()}`;
+const isoAtNoon = (date) => new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0, 0)).toISOString();
 function dateTimestamp(value) {
   const text = String(value || "").trim();
   const localDate = text.match(/^(\d{1,2})[/.](\d{1,2})[/.](\d{4})$/);
@@ -116,6 +119,398 @@ if (caseCount === 0) {
     ["expenses", { date: "18/03/2025", title: "Tasa de justicia", amount: "$ 15.000,00", state: "Pendiente" }],
   ].forEach(([section, data]) => seedEntry.run(randomUUID(), "demo-10482", section, JSON.stringify(data), createdAt));
 }
+
+function ensureDemoCaseData() {
+  const demoCaseId = "demo-10482";
+  const row = db.prepare("SELECT data, created_at, updated_at FROM cases WHERE id = ?").get(demoCaseId);
+  if (!row) return;
+
+  const parsed = readJson(row.data);
+  const fields = parsed.fields || {};
+  const nextFields = {
+    ...fields,
+    portal: fields.portal || "Portal Judicial",
+    claimantAddress: fields.claimantAddress || "Av. de ejemplo 123 · San Miguel de Tucumán",
+    defendantAddress: fields.defendantAddress || "Pasaje demo 456 · Yerba Buena",
+    assignedUser: fields.assignedUser || "Operador demo",
+    responsible: fields.responsible || "Abogado demo",
+    extraJudicialState: fields.extraJudicialState || "Negociación",
+    custom3: fields.custom3 || "Convenio",
+    custom4: fields.custom4 || "Sucursal Centro",
+    custom5: fields.custom5 || "Segmento PyME",
+    custom6: fields.custom6 || "Prioridad media",
+  };
+  if (JSON.stringify(nextFields) !== JSON.stringify(fields)) {
+    db.prepare("UPDATE cases SET data = ?, updated_at = ? WHERE id = ?")
+      .run(JSON.stringify({ ...parsed, fields: nextFields }), row.updated_at || row.created_at || now(), demoCaseId);
+  }
+
+  const existing = db.prepare("SELECT section, data FROM case_entries WHERE case_id = ? AND section IN ('documents', 'filings')").all(demoCaseId);
+  const seenKeys = new Set(existing.map((entry) => {
+    const data = readJson(entry.data);
+    return `${entry.section}:${String(data.title || "").trim().toLowerCase()}`;
+  }));
+  const insertEntry = db.prepare("INSERT INTO case_entries(id, case_id, section, data, created_at) VALUES(?, ?, ?, ?, ?)");
+  const demoEntries = [
+    ["documents", { date: "12/03/2025", title: "Demanda inicial", type: "PDF", filename: "demanda-demo.pdf", state: "Pendiente", portal: "Portal Judicial", process: "Cobro ejecutivo", moment: "Inicio", user: "Abogado demo" }],
+    ["documents", { date: "14/03/2025", title: "Poder general", type: "PDF", filename: "poder-demo.pdf", state: "Aprobado", portal: "Mesa Virtual", process: "Documentación base", moment: "Control", user: "Operador demo" }],
+    ["filings", { date: "18/03/2025", title: "Escrito de impulso", type: "Escrito", filename: "", state: "Presentado", portal: "Portal Judicial", process: "Impulso procesal", moment: "Presentación", user: "Abogado demo" }],
+    ["filings", { date: "20/03/2025", title: "Oficio a librar", type: "Oficio", filename: "", state: "Borrador", portal: "Mesa Virtual", process: "Medida preparatoria", moment: "Borrador", user: "Operador demo" }],
+  ];
+  for (const [section, data] of demoEntries) {
+    const key = `${section}:${String(data.title || "").trim().toLowerCase()}`;
+    if (seenKeys.has(key)) continue;
+    insertEntry.run(randomUUID(), demoCaseId, section, JSON.stringify(data), row.created_at || now());
+  }
+}
+
+ensureDemoCaseData();
+
+function ensureAdditionalDemoCases() {
+  const demoCases = [
+    {
+      id: "demo-93224",
+      createdAt: "2025-01-18T10:00:00.000Z",
+      fields: {
+        id: "93224",
+        title: "Banco Delta S.A. c/ Gómez, Lucía",
+        number: "932/2024",
+        amount: "$ 845.000,00",
+        type: "Cobro ejecutivo",
+        year: "2024",
+        claimant: "Banco Delta S.A.",
+        claimantAddress: "San Martín 450 · CABA",
+        defendant: "Gómez, Lucía",
+        defendantAddress: "Rivadavia 1220 · La Plata",
+        expediente: "932/24",
+        state: "Prueba",
+        substate: "Audiencia de prueba",
+        extraJudicialState: "Promesa de pago",
+        created: "18/01/2025",
+        portfolio: "General",
+        portal: "Mesa Virtual",
+        jurisdiction: "Buenos Aires",
+        court: "Juzgado Civil N° 4",
+        secretary: "Secretaría A",
+        judge: "Dra. Valdez",
+        process: "Ejecutivo",
+        lastUpdate: "22/03/2025",
+        lastOrder: "A prueba",
+        lastJudgeOrder: "Se fija audiencia",
+        location: "Despacho",
+        responsible: "Abogado demo",
+        assignedUser: "Analista demo",
+        custom1: "Lote 2",
+        custom2: "Zona Norte",
+        custom3: "Refinanciado",
+        custom4: "Canal sucursal",
+        custom5: "Segmento consumo",
+        custom6: "Prioridad alta",
+      },
+    },
+    {
+      id: "demo-77123",
+      createdAt: "2024-11-07T10:00:00.000Z",
+      fields: {
+        id: "77123",
+        title: "Aseguradora del Centro c/ Pérez, Martín",
+        number: "771/2023",
+        amount: "$ 2.180.000,00",
+        type: "Daños y perjuicios",
+        year: "2023",
+        claimant: "Aseguradora del Centro",
+        claimantAddress: "Av. Colón 890 · Córdoba",
+        defendant: "Pérez, Martín",
+        defendantAddress: "Belgrano 55 · Córdoba",
+        expediente: "771/23",
+        state: "Sentencia",
+        substate: "Acción denegada",
+        extraJudicialState: "Negociación",
+        created: "07/11/2024",
+        portfolio: "Cobros",
+        portal: "Portal Judicial",
+        jurisdiction: "Córdoba",
+        court: "Cámara Civil 2",
+        secretary: "Secretaría 1",
+        judge: "Dr. Roldán",
+        process: "Ordinario",
+        lastUpdate: "11/03/2025",
+        lastOrder: "Llamado de autos",
+        lastJudgeOrder: "Sentencia pendiente",
+        location: "Cámara",
+        responsible: "Abogada demo",
+        assignedUser: "Gestor demo",
+        custom1: "Lote 1",
+        custom2: "Interior",
+        custom3: "Alta complejidad",
+        custom4: "Canal productor",
+        custom5: "Segmento seguros",
+        custom6: "Prioridad media",
+      },
+    },
+    {
+      id: "demo-55026",
+      createdAt: "2025-03-03T10:00:00.000Z",
+      fields: {
+        id: "55026",
+        title: "Financiera Horizonte c/ Ruiz, Carla",
+        number: "550/2026",
+        amount: "$ 430.500,00",
+        type: "Cobranza extrajudicial",
+        year: "2026",
+        claimant: "Financiera Horizonte",
+        claimantAddress: "Maipú 300 · Rosario",
+        defendant: "Ruiz, Carla",
+        defendantAddress: "Santa Fe 2100 · Rosario",
+        expediente: "550/26",
+        state: "En trámite",
+        substate: "Pendiente",
+        extraJudicialState: "Contacto válido",
+        created: "03/03/2025",
+        portfolio: "General",
+        portal: "Portal Judicial",
+        jurisdiction: "Santa Fe",
+        court: "Juzgado de Circuito 8",
+        secretary: "Secretaría Única",
+        judge: "Dra. Farías",
+        process: "Monitorio",
+        lastUpdate: "25/03/2025",
+        lastOrder: "Traslado de demanda",
+        lastJudgeOrder: "Correr traslado",
+        location: "Mesa virtual",
+        responsible: "Abogado demo",
+        assignedUser: "Operador demo",
+        custom1: "Campaña marzo",
+        custom2: "Litoral",
+        custom3: "Contacto positivo",
+        custom4: "Canal digital",
+        custom5: "Segmento retail",
+        custom6: "Prioridad baja",
+      },
+    },
+  ];
+
+  const insertCase = db.prepare("INSERT INTO cases(id, data, created_at, updated_at) VALUES(?, ?, ?, ?)");
+  for (const item of demoCases) {
+    const existing = db.prepare("SELECT id FROM cases WHERE id = ?").get(item.id);
+    if (!existing) insertCase.run(item.id, JSON.stringify({ fields: item.fields }), item.createdAt, item.createdAt);
+  }
+
+  const insertEntry = db.prepare("INSERT INTO case_entries(id, case_id, section, data, created_at) VALUES(?, ?, ?, ?, ?)");
+  const demoEntries = [
+    ["demo-93224", "movements", { date: "22/03/2025", title: "Audiencia fijada", description: "Se fija audiencia testimonial", user: "Sistema" }, "2025-03-22T12:00:00.000Z"],
+    ["demo-93224", "movements", { date: "05/02/2025", title: "Pase a despacho", description: "Expediente a despacho para proveer", user: "Analista demo" }, "2025-02-05T12:00:00.000Z"],
+    ["demo-93224", "documents", { date: "21/03/2025", title: "Prueba documental", type: "PDF", filename: "prueba-documental.pdf", state: "Aprobado", portal: "Mesa Virtual", process: "Etapa probatoria", moment: "Control", user: "Analista demo" }, "2025-03-21T12:00:00.000Z"],
+    ["demo-93224", "expenses", { date: "19/03/2025", title: "Oficio diligenciado", type: "Gastos Varios", amount: "$ 12.500,00", dueDate: "25/03/2025", state: "Pagado" }, "2025-03-19T12:00:00.000Z"],
+    ["demo-93224", "fees", { date: "23/03/2025", title: "Honorario por audiencia", type: "Abono", amount: "$ 95.000,00", dueDate: "30/03/2025", state: "Pendiente" }, "2025-03-23T12:00:00.000Z"],
+    ["demo-77123", "movements", { date: "11/03/2025", title: "Llamado de autos", description: "Autos a sentencia", user: "Sistema" }, "2025-03-11T12:00:00.000Z"],
+    ["demo-77123", "filings", { date: "08/03/2025", title: "Alegato final", type: "Escrito", filename: "", state: "Presentado", portal: "Portal Judicial", process: "Sentencia", moment: "Presentación", user: "Abogada demo" }, "2025-03-08T12:00:00.000Z"],
+    ["demo-77123", "expenses", { date: "28/02/2025", title: "Pericia contable", type: "Otros", amount: "$ 48.000,00", dueDate: "10/03/2025", state: "Pendiente" }, "2025-02-28T12:00:00.000Z"],
+    ["demo-77123", "fees", { date: "12/03/2025", title: "Honorario por sentencia", type: "Por resultado", amount: "$ 280.000,00", dueDate: "20/03/2025", state: "Parcial" }, "2025-03-12T12:00:00.000Z"],
+    ["demo-55026", "movements", { date: "25/03/2025", title: "Traslado ordenado", description: "Se corre traslado a la demandada", user: "Operador demo" }, "2025-03-25T12:00:00.000Z"],
+    ["demo-55026", "documents", { date: "24/03/2025", title: "Convenio de pago", type: "PDF", filename: "convenio-demo.pdf", state: "Pendiente", portal: "Portal Judicial", process: "Cobranza extrajudicial", moment: "Documento", user: "Operador demo" }, "2025-03-24T12:00:00.000Z"],
+    ["demo-55026", "filings", { date: "26/03/2025", title: "Mandamiento a confeccionar", type: "Mandamiento", filename: "", state: "Borrador", portal: "Portal Judicial", process: "Monitorio", moment: "Borrador", user: "Abogado demo" }, "2025-03-26T12:00:00.000Z"],
+    ["demo-55026", "expenses", { date: "24/03/2025", title: "Tasa de justicia", type: "Tasa de Justicia", amount: "$ 8.900,00", dueDate: "29/03/2025", state: "Pendiente" }, "2025-03-24T12:00:00.000Z"],
+  ];
+
+  for (const [caseId, section, data, createdAt] of demoEntries) {
+    const exists = db.prepare("SELECT id, data FROM case_entries WHERE case_id = ? AND section = ?").all(caseId, section).find((row) => String(readJson(row.data).title || "") === String(data.title || ""));
+    if (!exists) insertEntry.run(randomUUID(), caseId, section, JSON.stringify(data), createdAt);
+  }
+
+  const insertAudit = db.prepare("INSERT INTO audit_log(id, user_id, case_id, action, detail, created_at) VALUES(?, ?, ?, ?, ?, ?)");
+  const auditRows = [
+    ["demo-10482", "case.review", "Se revisó la carátula y se confirmó el estado", "2025-03-18T09:00:00.000Z"],
+    ["demo-93224", "movement.created", "Se registró la audiencia testimonial", "2025-03-22T12:15:00.000Z"],
+    ["demo-77123", "document.status", "El alegato final pasó a Presentado", "2025-03-08T15:10:00.000Z"],
+    ["demo-55026", "finance.updated", "Se cargó tasa de justicia pendiente", "2025-03-24T16:30:00.000Z"],
+  ];
+  for (const [caseId, action, detail, createdAt] of auditRows) {
+    const exists = db.prepare("SELECT id FROM audit_log WHERE case_id = ? AND action = ? AND detail = ?").get(caseId, action, detail);
+    if (!exists) insertAudit.run(randomUUID(), null, caseId, action, detail, createdAt);
+  }
+}
+
+ensureAdditionalDemoCases();
+
+function ensureDemoModules() {
+  const seedModule = db.prepare("INSERT OR IGNORE INTO module_seeds(module, seeded_at) VALUES(?, ?)");
+  const insertRecord = db.prepare("INSERT INTO module_records(id, module, data, created_at) VALUES(?, ?, ?, ?)");
+
+  const agendaRows = [
+    { values: ["15/11/2026", "09:00", "Revisar audiencia testimonial", "932/2024", "Abogado demo", "Pendiente"], caseId: "demo-93224", details: "Confirmar documental y testigos antes de la audiencia." },
+    { values: ["15/11/2026", "12:30", "Controlar convenio de pago", "550/2026", "Operador demo", "En curso"], caseId: "demo-55026", details: "Verificar si la contraparte remitió el convenio firmado." },
+    { values: ["13/11/2026", "08:45", "Preparar alegato final", "771/2023", "Abogada demo", "Pendiente"], caseId: "demo-77123", details: "Consolidar jurisprudencia y prueba producida." },
+    { values: ["10/11/2026", "16:00", "Enviar documentación al cliente", "1842/2025", "Analista demo", "Completada"], caseId: "demo-10482", details: "Se enviaron copias simples del expediente y último proveído." },
+  ];
+  seedModule.run("client/agenda", now());
+  const currentAgenda = db.prepare("SELECT id, data FROM module_records WHERE module = 'client/agenda'").all();
+  for (const record of agendaRows) {
+    const exists = currentAgenda.find((row) => {
+      const data = readJson(row.data);
+      return JSON.stringify(data.values || []) === JSON.stringify(record.values || []);
+    });
+    if (!exists) insertRecord.run(randomUUID(), "client/agenda", JSON.stringify(record), now());
+  }
+
+  const inboxRows = [
+    { values: ["14/11/2026", "Documentación recibida", "Cliente Delta", "932/2024", "Nuevo"], caseId: "demo-93224", message: "Adjunto recibos y constancias para la audiencia de la próxima semana." },
+    { values: ["13/11/2026", "Consulta sobre sentencia", "Aseguradora del Centro", "771/2023", "Leído"], caseId: "demo-77123", message: "Solicitan estimación de plazos para el dictado de sentencia." },
+    { values: ["12/11/2026", "Propuesta de pago", "Ruiz, Carla", "550/2026", "Respondido"], caseId: "demo-55026", message: "La demandada ofrece plan en tres cuotas con primer pago inmediato." },
+    { values: ["11/11/2026", "Seguimiento de presentación", "Mesa Virtual", "1842/2025", "Archivado"], caseId: "demo-10482", message: "La presentación quedó correctamente incorporada al portal." },
+  ];
+  seedModule.run("client/inbox", now());
+  const currentInbox = db.prepare("SELECT id, data FROM module_records WHERE module = 'client/inbox'").all();
+  for (const record of inboxRows) {
+    const exists = currentInbox.find((row) => {
+      const data = readJson(row.data);
+      return JSON.stringify(data.values || []) === JSON.stringify(record.values || []);
+    });
+    if (!exists) insertRecord.run(randomUUID(), "client/inbox", JSON.stringify(record), now());
+  }
+
+  const reportRows = [
+    {
+      values: ["Casos activos de Cobros", "13/11/2026", "CSV · 2 casos", "Disponible"],
+      criteria: { portfolio: "Cobros", state: "" },
+      totalAmount: 3430000,
+      createdAt: "2026-11-13T09:15:00.000Z",
+      snapshot: [
+        { number: "1842/2025", claimant: "Empresa de ejemplo S.A.", defendant: "Persona de prueba", type: "Cobro ejecutivo", state: "En trámite", portfolio: "Cobros", jurisdiction: "Capital", amount: "$ 1.250.000,00", customFields: [{ key: "custom1", label: "Comodín 1", value: "—" }, { key: "custom2", label: "Comodín 2", value: "—" }] },
+        { number: "771/2023", claimant: "Aseguradora del Centro", defendant: "Pérez, Martín", type: "Daños y perjuicios", state: "Sentencia", portfolio: "Cobros", jurisdiction: "Córdoba", amount: "$ 2.180.000,00", customFields: [{ key: "custom1", label: "Comodín 1", value: "Lote 1" }, { key: "custom2", label: "Comodín 2", value: "Interior" }] },
+      ],
+    },
+    {
+      values: ["Expedientes con actividad reciente", "13/11/2026", "CSV · 4 casos", "Disponible"],
+      criteria: { from: "2025-01-01", to: "2026-12-31" },
+      totalAmount: 4705500,
+      createdAt: "2026-11-13T10:40:00.000Z",
+      snapshot: [
+        { number: "1842/2025", claimant: "Empresa de ejemplo S.A.", defendant: "Persona de prueba", type: "Cobro ejecutivo", state: "En trámite", portfolio: "Cobros", jurisdiction: "Capital", amount: "$ 1.250.000,00" },
+        { number: "932/2024", claimant: "Banco Delta S.A.", defendant: "Gómez, Lucía", type: "Cobro ejecutivo", state: "Prueba", portfolio: "General", jurisdiction: "Buenos Aires", amount: "$ 845.000,00" },
+        { number: "771/2023", claimant: "Aseguradora del Centro", defendant: "Pérez, Martín", type: "Daños y perjuicios", state: "Sentencia", portfolio: "Cobros", jurisdiction: "Córdoba", amount: "$ 2.180.000,00" },
+        { number: "550/2026", claimant: "Financiera Horizonte", defendant: "Ruiz, Carla", type: "Cobranza extrajudicial", state: "En trámite", portfolio: "General", jurisdiction: "Santa Fe", amount: "$ 430.500,00" },
+      ],
+    },
+  ];
+  seedModule.run("admin/mis_reportes", now());
+  const currentReports = db.prepare("SELECT id, data FROM module_records WHERE module = 'admin/mis_reportes'").all();
+  for (const record of reportRows) {
+    const exists = currentReports.find((row) => {
+      const data = readJson(row.data);
+      return JSON.stringify(data.values || []) === JSON.stringify(record.values || []);
+    });
+    if (!exists) insertRecord.run(randomUUID(), "admin/mis_reportes", JSON.stringify(record), record.createdAt || now());
+  }
+}
+
+ensureDemoModules();
+
+function ensureDashboardDemoDistribution() {
+  const today = new Date();
+  const caseSchedule = {
+    "demo-10482": addDays(today, -170),
+    "demo-93224": addDays(today, -130),
+    "demo-77123": addDays(today, -95),
+    "demo-55026": addDays(today, -35),
+    "demo-66026": addDays(today, -10),
+  };
+
+  const pendingCase = db.prepare("SELECT data, created_at, updated_at FROM cases WHERE id = ?").get("demo-66026");
+  if (!pendingCase) {
+    const createdDate = caseSchedule["demo-66026"];
+    db.prepare("INSERT INTO cases(id, data, created_at, updated_at) VALUES(?, ?, ?, ?)").run(
+      "demo-66026",
+      JSON.stringify({ fields: {
+        id: "66026",
+        title: "Servicios Integrales SRL c/ Medina, Pablo",
+        number: "660/2026",
+        amount: "$ 310.000,00",
+        type: "Cobro de pesos",
+        year: "2026",
+        claimant: "Servicios Integrales SRL",
+        claimantAddress: "Alsina 980 · Mendoza",
+        defendant: "Medina, Pablo",
+        defendantAddress: "Perú 151 · Mendoza",
+        expediente: "660/26",
+        state: "En trámite",
+        substate: "Pendiente",
+        extraJudicialState: "Contacto válido",
+        created: localDate(createdDate),
+        portfolio: "General",
+        portal: "Mesa Virtual",
+        jurisdiction: "Mendoza",
+        court: "Juzgado Civil 3",
+        secretary: "Secretaría B",
+        judge: "Dra. Quiroga",
+        process: "Cobro ordinario",
+        lastUpdate: localDate(createdDate),
+        lastOrder: "Sin movimientos registrados",
+        lastJudgeOrder: "—",
+        location: "Mesa virtual",
+        responsible: "Analista demo",
+        assignedUser: "Operador demo",
+        custom1: "Ingreso reciente",
+        custom2: "Cuyo",
+        custom3: "Sin actividad",
+        custom4: "Canal telefónico",
+        custom5: "Segmento servicios",
+        custom6: "Prioridad alta",
+      } }),
+      isoAtNoon(createdDate),
+      isoAtNoon(createdDate),
+    );
+  }
+
+  const trackedCases = db.prepare("SELECT id, data FROM cases WHERE id IN ('demo-10482', 'demo-93224', 'demo-77123', 'demo-55026', 'demo-66026')").all();
+  for (const row of trackedCases) {
+    const parsed = readJson(row.data);
+    const fields = parsed.fields || {};
+    const createdDate = caseSchedule[row.id] || today;
+    const createdAt = isoAtNoon(createdDate);
+    const nextFields = { ...fields, created: localDate(createdDate) };
+    const followed = ["demo-10482", "demo-93224", "demo-55026"].includes(row.id);
+    db.prepare("UPDATE cases SET data = ?, created_at = ?, updated_at = ? WHERE id = ?").run(JSON.stringify({ ...parsed, fields: nextFields, followed }), createdAt, createdAt, row.id);
+  }
+
+  const movementSeeds = [
+    ["demo-10482", { date: localDate(addDays(today, -8)), title: "Se acompaña liquidación", description: "Se presenta actualización de capital e intereses.", user: "Abogado demo", state: "Nuevo" }],
+    ["demo-10482", { date: localDate(addDays(today, -2)), title: "Pronto despacho solicitado", description: "Se impulsa el proveído pendiente en el portal.", user: "Analista demo", state: "Pendiente" }],
+    ["demo-93224", { date: localDate(addDays(today, -38)), title: "Audiencia reprogramada", description: "La audiencia testimonial fue reprogramada por agenda del tribunal.", user: "Sistema", state: "Pendiente" }],
+    ["demo-77123", { date: localDate(addDays(today, -92)), title: "Autos para resolver", description: "Quedó el expediente en estado de resolución.", user: "Abogada demo", state: "Revisado" }],
+    ["demo-55026", { date: localDate(addDays(today, -4)), title: "Seguimiento de convenio", description: "Se recibió propuesta parcial de pago.", user: "Operador demo", state: "Nuevo" }],
+    ["demo-55026", { date: localDate(addDays(today, -1)), title: "Llamado con deudora", description: "Se confirma intención de regularizar en tres cuotas.", user: "Abogado demo", state: "Nuevo" }],
+  ];
+  for (const [caseId, data] of movementSeeds) {
+    const existing = db.prepare("SELECT id, data FROM case_entries WHERE case_id = ? AND section = 'movements'").all(caseId).find((row) => String(readJson(row.data).title || "") === data.title);
+    const movementCreatedAt = new Date(dateTimestamp(data.date) || Date.parse(now())).toISOString();
+    if (existing) {
+      db.prepare("UPDATE case_entries SET data = ?, created_at = ? WHERE id = ?").run(JSON.stringify(data), movementCreatedAt, existing.id);
+    } else {
+      insertCaseEntryForSeed(caseId, "movements", data, movementCreatedAt);
+    }
+  }
+
+  const seedModule = db.prepare("INSERT OR IGNORE INTO module_seeds(module, seeded_at) VALUES(?, ?)");
+  const insertRecord = db.prepare("INSERT INTO module_records(id, module, data, created_at) VALUES(?, ?, ?, ?)");
+  seedModule.run("client/bajajuicio", now());
+  const bajRows = [
+    { values: ["771/2023", "Revisión de sentencia y cierre contable", localDate(addDays(today, -60)), "Pendiente"], caseId: "demo-77123" },
+    { values: ["932/2024", "Acuerdo extrajudicial en negociación", localDate(addDays(today, -25)), "Aprobada"], caseId: "demo-93224" },
+    { values: ["660/2026", "Depuración de cartera sin movimiento", localDate(addDays(today, -7)), "Pendiente"], caseId: "demo-66026" },
+  ];
+  const current = db.prepare("SELECT id, data FROM module_records WHERE module = 'client/bajajuicio'").all();
+  for (const record of bajRows) {
+    const exists = current.find((row) => JSON.stringify(readJson(row.data).values || []) === JSON.stringify(record.values));
+    if (!exists) insertRecord.run(randomUUID(), "client/bajajuicio", JSON.stringify(record), now());
+  }
+}
+
+function insertCaseEntryForSeed(caseId, section, data, createdAt) {
+  db.prepare("INSERT INTO case_entries(id, case_id, section, data, created_at) VALUES(?, ?, ?, ?, ?)").run(randomUUID(), caseId, section, JSON.stringify(data), createdAt);
+}
+
+ensureDashboardDemoDistribution();
 
 function sendJson(res, status, value) {
   const body = JSON.stringify(value);
@@ -387,7 +782,7 @@ const server = createServer(async (req, res) => {
     }
 
     if (req.method === "GET" && url.pathname === "/api/summary") {
-      const caseRows = db.prepare("SELECT id, data FROM cases").all();
+      const caseRows = db.prepare("SELECT id, data, created_at, updated_at FROM cases").all();
       const stateCounts = {};
       for (const row of caseRows) {
         const fields = readJson(row.data).fields || {};
@@ -399,12 +794,33 @@ const server = createServer(async (req, res) => {
         return state !== "finalizado" && state !== "cerrado";
       }).length;
       const counts = Object.fromEntries(db.prepare("SELECT section, COUNT(*) AS count FROM case_entries GROUP BY section").all().map((row) => [row.section, row.count]));
-      const recent = db.prepare("SELECT case_id, data, created_at FROM case_entries WHERE section = 'movements' ORDER BY created_at DESC LIMIT 4").all().map((row) => {
+      const recent = db.prepare("SELECT id, case_id, data, created_at FROM case_entries WHERE section = 'movements'").all().map((row) => {
         const data = readJson(row.data);
         const caseRow = caseRows.find((item) => item.id === row.case_id);
         const caseFields = caseRow ? readJson(caseRow.data).fields : {};
-        return { date: data.date || row.created_at, title: data.title || data.description || "Movimiento", caseNumber: caseFields.number || "—" };
-      });
+        return { id: row.id, caseId: row.case_id, date: data.date || String(row.created_at).slice(0, 10), title: data.title || data.description || "Movimiento", description: String(data.description || ""), caseNumber: caseFields.number || "—", caseTitle: caseFields.title || "—", sortAt: dateTimestamp(data.date) ?? Date.parse(row.created_at) ?? 0 };
+      }).sort((a, b) => b.sortAt - a.sortAt).slice(0, 10).map(({ sortAt, ...item }) => item);
+      const parseAmountValue = (value) => {
+        const digits = String(value || "").replace(/[^\d,.-]/g, "");
+        if (!digits) return 0;
+        const normalized = digits.includes(",") && digits.lastIndexOf(",") > digits.lastIndexOf(".")
+          ? digits.replace(/\./g, "").replace(",", ".")
+          : digits.replace(/,/g, "");
+        const parsed = Number.parseFloat(normalized);
+        return Number.isFinite(parsed) ? parsed : 0;
+      };
+      const portfolioTotals = {};
+      for (const row of caseRows) {
+        const fields = readJson(row.data).fields || {};
+        const portfolio = String(fields.portfolio || "").trim() || "Sin portfolio";
+        const current = portfolioTotals[portfolio] || { name: portfolio, count: 0, totalAmount: 0, updatedAt: "" };
+        current.count += 1;
+        current.totalAmount += parseAmountValue(fields.amount);
+        const stamp = String(row.updated_at || row.created_at || "");
+        if (stamp > current.updatedAt) current.updatedAt = stamp;
+        portfolioTotals[portfolio] = current;
+      }
+      const portfolioBreakdown = Object.values(portfolioTotals).sort((a, b) => b.count - a.count);
       const agendaRows = db.prepare("SELECT data, created_at FROM module_records WHERE module = 'client/agenda' ORDER BY created_at DESC").all();
       const today = new Date(); today.setHours(0, 0, 0, 0);
       let overdueAgendaCount = 0;
@@ -423,7 +839,7 @@ const server = createServer(async (req, res) => {
         return { date: String(values[0] || "—"), time: String(values[1] || ""), title: String(values[2] || "Actividad"), caseId: data.caseId || null, caseNumber: caseFields.number || values[3] || "—", status, dueAt: dueAt.getTime() };
       }).filter(Boolean).sort((a, b) => a.dueAt - b.dueAt).slice(0, 3);
       const agendaCount = agendaRows.length;
-      return sendJson(res, 200, { totalCases: caseRows.length, activeCases, stateCounts, movementCount: counts.movements || 0, documentCount: (counts.documents || 0) + (counts.filings || 0), expenseCount: counts.expenses || 0, agendaCount, overdueAgendaCount, upcomingAgenda, recent });
+      return sendJson(res, 200, { totalCases: caseRows.length, activeCases, stateCounts, movementCount: counts.movements || 0, documentCount: (counts.documents || 0) + (counts.filings || 0), expenseCount: counts.expenses || 0, agendaCount, overdueAgendaCount, upcomingAgenda, recent, portfolioBreakdown });
     }
 
     if (req.method === "GET" && url.pathname === "/api/audit") {
@@ -461,6 +877,8 @@ const server = createServer(async (req, res) => {
           number: String(fields.number || row.id),
           title: String(fields.title || `${fields.claimant || "—"} c/ ${fields.defendant || "—"}`),
           state: String(fields.state || "Sin estado"),
+          jurisdiction: String(fields.jurisdiction || "Sin jurisdicción"),
+          amount: String(fields.amount || ""),
           lastMovement: movement?.data.title || movement?.data.description || "Sin movimientos registrados",
           lastMovementDate: movement ? movement.data.date || movement.createdAt : "—",
           daysWithoutMovement,
@@ -509,6 +927,7 @@ const server = createServer(async (req, res) => {
           caseId: row.case_id,
           section: row.section,
           caseNumber: String(fields.number || row.case_id),
+          caseTitle: String(fields.title || `${fields.claimant || "—"} c/ ${fields.defendant || "—"}`),
           title: String(data.title || "Documento sin título"),
           type: String(data.type || (row.section === "filings" ? "Presentación" : "Documento")),
           date: String(data.date || row.created_at),
@@ -516,6 +935,9 @@ const server = createServer(async (req, res) => {
           fileName: String(data.fileName || data.filename || ""),
           hasFile: Boolean(data.storageId),
           user: String(data.user || "Cuenta local"),
+          portal: String(data.portal || fields.portal || fields.portfolio || "Sin portal"),
+          process: String(data.process || data.type || fields.type || "Sin proceso"),
+          moment: String(data.moment || (row.section === "filings" ? "Presentación" : "Documento")),
           createdAt: row.created_at,
         };
       });

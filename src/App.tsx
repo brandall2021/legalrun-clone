@@ -4,60 +4,81 @@ type CaseField = { key: string; label: string; value: string; select?: boolean; 
 type CaseRecord = { id: string; fields: Record<string, string>; createdAt?: string; updatedAt?: string; followed?: boolean };
 type LocalUser = { id: string; email: string };
 
-const groups = [
+const groups: {
+  title: string;
+  items: [string, string, string][];
+  subgroups?: { title: string; items: [string, string, string][] }[];
+}[] = [
   {
-    title: "Trabajo diario",
+    title: "",
     items: [
       ["Inicio", "⌂", "#/client/home_estudio_juridico"],
       ["Agenda", "▦", "#/client/agenda"],
       ["Inbox", "✉", "#/client/inbox"],
       ["Novedades de juicios", "◷", "#/client/novedades_juicio"],
       ["Búsqueda de casos", "⌕", "#/client/searchinf"],
-      ["Seguimiento", "★", "#/client/followed"],
     ],
   },
   {
-    title: "Reportes",
+    title: "Seguimiento",
+    subgroups: [
+      {
+        title: "Dashboards",
+        items: [
+          ["Stock (altas y bajas)", "▤", "#/client/dashboard/stock"],
+          ["Sin Movimientos", "◌", "#/client/dashboard/movimientos"],
+          ["Estado Procesal", "◉", "#/client/dashboard/state"],
+          ["Impulso Procesal", "↗", "#/client/dashboard/impulse"],
+        ],
+      },
+    ],
     items: [
-      ["Stock (altas y bajas)", "▤", "#/client/dashboard/stock"],
-      ["Sin movimientos", "◌", "#/client/dashboard/movimientos"],
-      ["Estado procesal", "◉", "#/client/dashboard/state"],
-      ["Impulso procesal", "↗", "#/client/dashboard/impulse"],
-      ["Gastos y honorarios", "∑", "#/client/dashboard/finance"],
       ["Reportes", "▥", "#/admin/report"],
       ["Mis reportes", "▧", "#/admin/mis_reportes"],
+      ["Gastos y honorarios", "∑", "#/client/dashboard/finance"],
+      ["Seguimiento ★", "★", "#/client/followed"],
     ],
   },
   {
-    title: "Administración",
+    title: "Mantenimiento de portfolio",
     items: [
       ["Alta de casos", "+", "#/client/administration"],
       ["Baja de casos", "−", "#/client/bajajuicio"],
       ["Actualización masiva", "⇧", "#/client/admmassive"],
-      ["Importar casos", "⇩", "#/client/cases/import"],
       ["Nuevos juicios", "✦", "#/client/nuevos_juicios"],
       ["Historial de mantenimiento", "◴", "#/client/history"],
-      ["Estado de documentos", "▣", "#/client/document_state"],
+      ["Estado de documentos en presentación", "▣", "#/client/document_state"],
     ],
   },
   {
     title: "Configuración",
     items: [
       ["Estado judicial", "⚙", "#/client/configuracion/estado"],
-      ["Subestado judicial", "⚙", "#/client/configuracion/subEstado"],
+      ["Sub estado judicial", "⚙", "#/client/configuracion/subEstado"],
+      ["Estado extra judicial", "⚙", "#/client/configuracion/estado-extra-judicial"],
+      ["Sub estado extra judicial", "⚙", "#/client/configuracion/subEstado-extra-judicial"],
       ["Usuarios", "⚙", "#/client/configuracion/usersAbogado"],
       ["Portfolios", "⚙", "#/client/configuracion/portfolio"],
-      ["Jurisdicciones y organismos", "⚙", "#/client/configuracion/jurisdicciones-organismos"],
+      ["Jurisdicciones y Organismos", "⚙", "#/client/configuracion/jurisdicciones-organismos"],
       ["Campos comodines", "⚙", "#/client/configuracion/campos-comodines"],
-      ["Templates", "⚙", "#/client/configuracion/template"],
-      ["Tipos de medida cautelar", "⚙", "#/client/configuracion/tipo-medida-cautelar"],
-      ["Tipos de gastos", "⚙", "#/client/configuracion/tipo_gasto"],
-      ["Tipos de honorarios", "⚙", "#/client/configuracion/tipo_honorario"],
-      ["Actualización automática", "⚙", "#/client/configuracion/actualizacion_automatica"],
+      ["Template", "⚙", "#/client/configuracion/template"],
+      ["Tipo medida cautelar", "⚙", "#/client/configuracion/tipo-medida-cautelar"],
+      ["Estado medida cautelar", "⚙", "#/client/configuracion/estado-medida-cautelar"],
+      ["Sub Tipo de Pagos/Cobros", "⚙", "#/client/configuracion/sub_tipos_pagos_cobros"],
+      ["Tipo de gasto", "⚙", "#/client/configuracion/tipo_gasto"],
+      ["Tipo de honorarios", "⚙", "#/client/configuracion/tipo_honorario"],
+      ["Actualización automática de estados", "⚙", "#/client/configuracion/actualizacion_automatica"],
       ["Etiquetas con IA", "⚙", "#/client/configuracion/label_with_ia"],
-      ["Sugerencias", "⚙", "#/client/configuracion/suggested_movements"],
+      ["Sugerencia de Templates y Estados según etiquetas", "⚙", "#/client/configuracion/suggested_movements"],
       ["Cambiar contraseña", "⚿", "#/client/configuracion/security"],
       ["Copia de seguridad", "⇩", "#/client/configuracion/backup"],
+    ],
+  },
+  {
+    title: "Doctrina y jurisprudencia",
+    items: [
+      ["El Dial", "⚖", "https://www.eldial.com/"],
+      ["Infoleg", "⚖", "https://www.infoleg.gob.ar/"],
     ],
   },
 ];
@@ -103,7 +124,7 @@ const actions = [
   ["⇩", "Exportar"],
 ];
 
-type ModuleDefinition = { description: string; columns: string[]; rows: string[][]; action?: string };
+type ModuleDefinition = { description: string; heading?: string; seedVersion?: number; columns: string[]; rows: string[][]; action?: string };
 
 const moduleDefinitions: Record<string, ModuleDefinition> = {
   "#/client/agenda": { description: "Tareas y vencimientos del estudio.", columns: ["Fecha", "Hora", "Actividad", "Expediente", "Responsable", "Estado"], rows: [["21/04/2025", "09:30", "Revisar vencimiento", "1842/2025", "Equipo demo", "Pendiente"], ["22/04/2025", "12:00", "Preparar presentación", "932/2024", "Equipo demo", "En curso"]], action: "Nueva actividad" },
@@ -121,21 +142,23 @@ const moduleDefinitions: Record<string, ModuleDefinition> = {
   "#/client/nuevos_juicios": { description: "Casos nuevos para revisar y asignar.", columns: ["Fecha", "Expediente", "Carátula", "Origen", "Estado"], rows: [["18/03/2025", "1842/2025", "Caso de ejemplo", "Manual", "Sin asignar"]], action: "Agregar caso" },
   "#/client/history": { description: "Registro de cambios realizados en el sistema.", columns: ["Fecha", "Usuario", "Acción", "Expediente", "Detalle"], rows: [["18/03/2025", "Usuario demo", "Actualización", "1842/2025", "Cambio de estado"]] },
   "#/client/document_state": { description: "Estado de documentos en presentación.", columns: ["Fecha", "Expediente", "Documento", "Estado", "Observación"], rows: [["18/03/2025", "1842/2025", "Escrito de prueba", "Presentado", "—"]], action: "Nuevo documento" },
-  "#/client/configuracion/estado": { description: "Catálogo editable de estados judiciales.", columns: ["Estado", "Descripción", "Activo"], rows: [["En trámite", "Expediente activo", "Sí"], ["Finalizado", "Proceso concluido", "Sí"]], action: "Agregar estado" },
-  "#/client/configuracion/subEstado": { description: "Subestados asociados a los estados judiciales.", columns: ["Subestado", "Estado", "Activo"], rows: [["Pendiente", "En trámite", "Sí"], ["A despacho", "En trámite", "Sí"]], action: "Agregar subestado" },
-  "#/client/configuracion/usersAbogado": { description: "Usuarios y responsables del estudio.", columns: ["Usuario", "Nombre", "Rol", "Estado"], rows: [["usuario.demo", "Usuario de prueba", "Abogado/a", "Activo"]], action: "Agregar usuario" },
-  "#/client/configuracion/portfolio": { description: "Portfolios utilizados para organizar casos.", columns: ["Portfolio", "Descripción", "Casos", "Estado"], rows: [["Cobros", "Casos de cobro", "82", "Activo"]], action: "Agregar portfolio" },
-  "#/client/configuracion/jurisdicciones-organismos": { description: "Jurisdicciones y organismos judiciales.", columns: ["Jurisdicción", "Organismo", "Código", "Estado"], rows: [["Capital", "Juzgado Civil · Turno 2", "JC02", "Activo"]], action: "Agregar organismo" },
-  "#/client/configuracion/campos-comodines": { description: "Campos personalizados para la ficha de expediente.", columns: ["Campo", "Tipo", "Visible", "Estado"], rows: [["Comodín 1", "Texto", "Sí", "Activo"]], action: "Agregar campo" },
-  "#/client/configuracion/template": { description: "Plantillas de escritos y documentos.", columns: ["Nombre", "Tipo", "Actualizado", "Estado"], rows: [["Presentación simple", "Escrito", "18/03/2025", "Activo"]], action: "Nueva plantilla" },
-  "#/client/configuracion/tipo-medida-cautelar": { description: "Tipos de medidas cautelares.", columns: ["Tipo", "Descripción", "Estado"], rows: [["Embargo", "Medida de ejemplo", "Activo"]], action: "Agregar tipo" },
-  "#/client/configuracion/estado-medida-cautelar": { description: "Estados de medidas cautelares.", columns: ["Estado", "Descripción", "Activo"], rows: [["Solicitada", "Pendiente de resolución", "Sí"]], action: "Agregar estado" },
-  "#/client/configuracion/sub_tipos_pagos_cobros": { description: "Subtipos de pagos y cobros.", columns: ["Subtipo", "Categoría", "Estado"], rows: [["Tasa de justicia", "Pago", "Activo"]], action: "Agregar subtipo" },
-  "#/client/configuracion/tipo_gasto": { description: "Tipos de gastos del estudio.", columns: ["Tipo de gasto", "Descripción", "Estado"], rows: [["Tasas", "Tasas y aportes", "Activo"]], action: "Agregar tipo" },
-  "#/client/configuracion/tipo_honorario": { description: "Tipos de honorarios.", columns: ["Tipo de honorario", "Descripción", "Estado"], rows: [["Pactado", "Honorarios de ejemplo", "Activo"]], action: "Agregar tipo" },
-  "#/client/configuracion/actualizacion_automatica": { description: "Preferencias de actualización automática de estados.", columns: ["Configuración", "Valor", "Estado"], rows: [["Frecuencia", "Diaria", "Activa"], ["Notificaciones", "Correo", "Activas"]], action: "Editar configuración" },
-  "#/client/configuracion/label_with_ia": { description: "Reglas de etiquetado asistido.", columns: ["Etiqueta", "Regla", "Estado"], rows: [["Prioridad", "Regla de ejemplo", "Activa"]], action: "Crear regla" },
-  "#/client/configuracion/suggested_movements": { description: "Sugerencias de templates y estados según etiquetas.", columns: ["Etiqueta", "Template sugerido", "Estado sugerido"], rows: [["Prioridad", "Presentación simple", "En trámite"]], action: "Agregar sugerencia" },
+  "#/client/configuracion/estado": { description: "Catálogo editable de estados judiciales.", heading: "Estados judiciales", seedVersion: 2, columns: ["Fecha de creación", "Ordinal", "Estado judicial", "Usuario"], rows: [["12/03/2025", "6", "Contestación demanda", "—"], ["12/03/2025", "8", "Excepciones previas", "—"], ["12/03/2025", "10", "Prueba", "—"], ["12/03/2025", "13", "Sentencia", "—"], ["12/03/2025", "14", "Plan de Pagos", "—"], ["12/03/2025", "15", "Finalizado", "—"]], action: "Nuevo" },
+  "#/client/configuracion/subEstado": { description: "Subestados asociados a los estados judiciales.", heading: "Sub estados judiciales", seedVersion: 2, columns: ["Fecha de creación", "Estado judicial", "Sub estado judicial", "Usuario"], rows: [["12/03/2025", "En trámite", "Pendiente", "—"], ["12/03/2025", "En trámite", "A despacho", "—"], ["12/03/2025", "Prueba", "Audiencia de prueba", "—"], ["12/03/2025", "Sentencia", "Acción denegada", "—"]], action: "Nuevo" },
+  "#/client/configuracion/estado-extra-judicial": { description: "Catálogo editable de estados extrajudiciales.", heading: "Estados extra judiciales", seedVersion: 2, columns: ["Fecha de creación", "Estado extra judicial", "Usuario"], rows: [["12/03/2025", "Negociación", "—"], ["12/03/2025", "Contacto válido", "—"], ["12/03/2025", "Contacto inválido", "—"], ["12/03/2025", "Promesa de pago", "—"], ["12/03/2025", "Acuerdo cumplido", "—"]], action: "Nuevo" },
+  "#/client/configuracion/subEstado-extra-judicial": { description: "Subestados asociados a los estados extrajudiciales.", heading: "Sub estados extra judiciales", seedVersion: 2, columns: ["Fecha de creación", "Estado extra judicial", "Sub estado extra judicial", "Usuario"], rows: [["12/03/2025", "Negociación", "En contacto", "—"], ["12/03/2025", "Contacto inválido", "Fuera de servicio", "—"], ["12/03/2025", "Promesa de pago", "Cumplida", "—"]], action: "Nuevo" },
+  "#/client/configuracion/usersAbogado": { description: "Usuarios y responsables del estudio.", heading: "Administración de usuarios", seedVersion: 2, columns: ["Nombre", "Apellido", "Rol", "Mail", "Dni", "Teléfono Celular", "Teléfono Trabajo", "Estado judicial"], rows: [["Nombre", "de prueba", "Abogado/a", "usuario.demo@estudiolocal.com", "—", "—", "—", "Activo"]], action: "Nuevo" },
+  "#/client/configuracion/portfolio": { description: "Portfolios utilizados para organizar casos.", heading: "Portfolios", seedVersion: 2, columns: ["Fecha de creación", "Nombre", "Id Portfolio", "Usuario"], rows: [["12/03/2025", "General", "1", "—"], ["12/03/2025", "Cobros", "2", "—"]], action: "Nuevo" },
+  "#/client/configuracion/jurisdicciones-organismos": { description: "Jurisdicciones y organismos judiciales.", heading: "Jurisdicciones y Organismos", seedVersion: 2, columns: ["ID", "Portal", "Jurisdicción", "Departamento", "Organismo", "Juez", "Secretario/a", "Dirección juzgado", "Fecha de última actualización"], rows: [["1", "Sin Conexión", "Capital", "—", "Juzgado Civil · Turno 2", "—", "—", "—", "12/03/2025"]], action: "Agregar organismo" },
+  "#/client/configuracion/campos-comodines": { description: "Campos personalizados para la ficha de expediente.", heading: "Campos comodines", seedVersion: 2, columns: ["Comodines", "Nombres"], rows: [["Comodín 1", ""], ["Comodín 2", ""], ["Comodín 3", ""], ["Comodín 4", ""], ["Comodín 5", ""], ["Comodín 6", ""], ["Comodín 7", ""], ["Comodín 8", ""], ["Comodín 9", ""], ["Comodín 10", ""], ["Comodín 11", ""], ["Comodín 12", ""], ["Comodín 13", ""], ["Comodín 14", ""], ["Comodín 15", ""]] },
+  "#/client/configuracion/template": { description: "Plantillas de escritos y documentos.", heading: "Templates", seedVersion: 2, columns: ["Fecha de creación", "Tipo de documento", "Nombre de Template", "Usuario"], rows: [["12/03/2025", "Escrito", "Presentación simple", "—"], ["12/03/2025", "Escrito", "Oficio", "—"]], action: "Nuevo" },
+  "#/client/configuracion/tipo-medida-cautelar": { description: "Tipos de medidas cautelares.", heading: "Tipo medida cautelar", seedVersion: 2, columns: ["Fecha de creación", "Tipo medida cautelar", "Usuario"], rows: [], action: "Nuevo" },
+  "#/client/configuracion/estado-medida-cautelar": { description: "Estados de medidas cautelares.", heading: "Estado medida cautelar", seedVersion: 2, columns: ["Fecha de creación", "Estado medida cautelar", "Usuario"], rows: [], action: "Nuevo" },
+  "#/client/configuracion/sub_tipos_pagos_cobros": { description: "Subtipos de pagos y cobros.", heading: "Subtipo de pagos/cobros", seedVersion: 2, columns: ["Fecha de creación", "Subtipo de pagos/cobros", "Usuario"], rows: [["12/03/2025", "Cuota", "—"], ["12/03/2025", "Total", "—"], ["12/03/2025", "Anticipo", "—"]], action: "Nuevo" },
+  "#/client/configuracion/tipo_gasto": { description: "Tipos de gastos del estudio.", heading: "Tipo de gasto", seedVersion: 2, columns: ["Fecha de creación", "Tipo de gasto", "Usuario"], rows: [["12/03/2025", "Gastos Varios", "—"], ["12/03/2025", "Otros", "—"], ["12/03/2025", "Aporte", "—"], ["12/03/2025", "Tasa de Justicia", "—"]], action: "Nuevo" },
+  "#/client/configuracion/tipo_honorario": { description: "Tipos de honorarios.", heading: "Tipo de Honorario", seedVersion: 2, columns: ["Fecha de creación", "Tipo de Honorario", "Usuario"], rows: [["12/03/2025", "Otros", "—"], ["12/03/2025", "Por resultado", "—"], ["12/03/2025", "Anticipo", "—"], ["12/03/2025", "Abono", "—"]], action: "Nuevo" },
+  "#/client/configuracion/actualizacion_automatica": { description: "Reglas que actualizan estados automáticamente según movimientos.", heading: "Actualización automática de estados", seedVersion: 2, columns: ["Portal", "Portfolio", "Tipo de movimiento", "Título y frases", "Estado procesal", "Sub-estado procesal", "Estado judicial anterior", "Sub-estado judicial anterior", "Estado medida cautelar", "Tipo medida cautelar", "Usuario"], rows: [], action: "Nuevo" },
+  "#/client/configuracion/label_with_ia": { description: "Reglas de etiquetado asistido por IA para movimientos procesales.", heading: "Etiquetas con IA para Movimientos procesales", seedVersion: 2, columns: ["Portal", "Portafolio", "Titulo", "IA utilizada", "Prompt", "Activo", "Usuario", "Fecha"], rows: [], action: "Nuevo" },
+  "#/client/configuracion/suggested_movements": { description: "Sugerencias de templates y estados según etiquetas.", heading: "Sugerencia de Templates y Estados según etiquetas", seedVersion: 2, columns: ["Título", "Usuario", "Fecha", "Portal", "Portfolio", "Etiqueta", "Acción", "Automático", "Tipo de documento", "Template", "Doc inicial", "Estado judicial", "Subestado judicial"], rows: [], action: "Nuevo" },
 };
 
 const defaultJudicialStates = ["En trámite", "Pendiente", "Finalizado", "Suspendido"];
@@ -259,6 +282,7 @@ export default function App() {
   const [search, setSearch] = useState("");
   const [toast, setToast] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [topPortfolio, setTopPortfolio] = useState("");
   const isAuthPage = route.startsWith("#/auth/") || route === "#/";
   const detailId = route.includes("/searchinf/detail/") ? route.split("/").pop() || "demo-10482" : null;
   const currentState = fields.find((field) => field.key === "state")?.value;
@@ -326,6 +350,10 @@ export default function App() {
       })
       .catch(() => setToast("No se pudo cargar el expediente"));
   }, [session, detailId, caseFieldDefinitions]);
+
+  useEffect(() => {
+    if (topPortfolio && !portfolios.includes(topPortfolio)) setTopPortfolio("");
+  }, [topPortfolio, portfolios]);
 
   const isDetail = route.includes("/searchinf/detail/");
   const pageTitle = useMemo(() => {
@@ -502,16 +530,36 @@ export default function App() {
         <div className="workspace"><span className="workspace-dot" /> Estudio jurídico <span className="chevron">⌄</span></div>
         <div className="sidebar-scroll">
           {groups.map((group) => (
-            <div className="nav-group" key={group.title}>
-              <p className="nav-heading">{group.title}</p>
+            <div className="nav-group" key={group.title || "principal"}>
+              {group.title ? <p className="nav-heading">{group.title}</p> : null}
+              {group.subgroups?.map((subgroup) => (
+                <div className="nav-subgroup" key={subgroup.title}>
+                  <p className="nav-subheading">{subgroup.title}</p>
+                  {subgroup.items.map(([label, icon, href]) => (
+                    <button
+                      key={`${label}-${href}`}
+                      className={`nav-item nav-subitem ${route === href || (isDetail && href === "#/client/searchinf") ? "nav-active" : ""}`}
+                      onClick={() => navigate(href)}
+                    >
+                      <span className="nav-icon">{icon}</span><span>{label}</span>
+                    </button>
+                  ))}
+                </div>
+              ))}
               {group.items.map(([label, icon, href]) => (
-                <button
-                  key={`${label}-${href}`}
-                  className={`nav-item ${route === href || (isDetail && href === "#/client/searchinf") ? "nav-active" : ""}`}
-                  onClick={() => navigate(href)}
-                >
-                  <span className="nav-icon">{icon}</span><span>{label}</span>
-                </button>
+                href.startsWith("http") ? (
+                  <a key={`${label}-${href}`} className="nav-item" href={href} target="_blank" rel="noreferrer">
+                    <span className="nav-icon">{icon}</span><span>{label}</span>
+                  </a>
+                ) : (
+                  <button
+                    key={`${label}-${href}`}
+                    className={`nav-item ${route === href || (isDetail && href === "#/client/searchinf") ? "nav-active" : ""}`}
+                    onClick={() => navigate(href)}
+                  >
+                    <span className="nav-icon">{icon}</span><span>{label}</span>
+                  </button>
+                )
               ))}
             </div>
           ))}
@@ -524,12 +572,26 @@ export default function App() {
       <main className="main-area">
         <header className="topbar">
           <button className="icon-button menu-button" onClick={() => setMenuOpen(true)} aria-label="Abrir menú">☰</button>
-          <div className="breadcrumbs"><span>LegalRun</span><span>/</span><strong>{pageTitle}</strong>{isDetail && <><span>/</span><strong>Expediente de ejemplo</strong></>}</div>
-          <div className="top-actions">
-            <button className="ai-button" onClick={() => notify("Asistente IA")}><span>✦</span> Asistente IA</button>
-            <button className="icon-button notification" aria-label="Notificaciones">♧<i /></button>
-            <button className="profile-button" onClick={logout}><span className="avatar small">{session.email.slice(0, 2).toUpperCase()}</span><span>{session.email}</span><span>Salir</span></button>
+          <div className="top-brand"><div className="brand-mark small">LR</div></div>
+          <button className="text-button help-button" onClick={() => notify("Ayuda local: cada módulo guarda su información en SQLite.")}>ⓘ Ayuda</button>
+          <span className="top-sep" />
+          <button className="ai-button" onClick={() => notify("Asistente IA")}><span>✦</span> Asistente IA</button>
+          <span className="top-sep" />
+          <div className="portfolio-picker">
+            <span>Portfolio</span>
+            <select value={topPortfolio} onChange={(event) => setTopPortfolio(event.target.value)} aria-label="Filtrar por portfolio">
+              <option value="">Todos los portfolios</option>
+              {portfolios.map((value) => <option key={value}>{value}</option>)}
+            </select>
           </div>
+          <div className="top-spacer" />
+          <div className="session-meta">
+            <span>Cliente:</span><strong>Estudio local</strong>
+            <span>Usuario:</span><strong>{session.email}</strong>
+            <span>Rol:</span><strong>Administrador</strong>
+          </div>
+          <button className="icon-button notification" aria-label="Notificaciones">♧<i /></button>
+          <button className="profile-button" onClick={logout}><span className="avatar small">{session.email.slice(0, 2).toUpperCase()}</span><span>{session.email}</span><span>Salir</span></button>
         </header>
 
         <div className="page-content">
@@ -575,7 +637,7 @@ export default function App() {
               ) : <CaseEntriesTab key={`${detailId}-${activeTab}`} tab={activeTab} caseId={detailId || "demo-10482"} onSaved={report} />}
             </>
           ) : route === "#/client/home_estudio_juridico" ? (
-            <HomePage navigate={navigate} />
+            <HomePage navigate={navigate} cases={cases} portfolioFilter={topPortfolio} />
           ) : route === "#/client/agenda" ? (
             <AgendaPage cases={cases} openCase={(id) => navigate(`#/client/searchinf/detail/${id}`)} onSaved={report} />
           ) : route === "#/client/inbox" ? (
@@ -593,11 +655,11 @@ export default function App() {
           ) : route === "#/client/configuracion/backup" ? (
             <BackupPage onSaved={report} onRestored={refreshCases} />
           ) : route === "#/client/searchinf" ? (
-            <SearchPage search={search} setSearch={setSearch} cases={cases} customFields={customFields} openCase={(id) => navigate(`#/client/searchinf/detail/${id}`)} onCreate={() => navigate("#/client/administration")} />
+            <SearchPage search={search} setSearch={setSearch} cases={cases} customFields={customFields} openCase={(id) => navigate(`#/client/searchinf/detail/${id}`)} onCreate={() => navigate("#/client/administration")} globalPortfolio={topPortfolio} />
           ) : route === "#/client/followed" ? (
-            <FollowedCasesPage cases={cases} onCaseUpdated={(updated) => setCases((current) => current.map((item) => item.id === updated.id ? updated : item))} openCase={(id) => navigate(`#/client/searchinf/detail/${id}`)} />
+            <FollowedCasesPage cases={cases} onCaseUpdated={(updated) => setCases((current) => current.map((item) => item.id === updated.id ? updated : item))} openCase={(id) => navigate(`#/client/searchinf/detail/${id}`)} globalPortfolio={topPortfolio} />
           ) : route === "#/client/administration" ? (
-            <CreateCasePage states={judicialStates.length ? judicialStates : defaultJudicialStates} portfolios={portfolios} jurisdictions={jurisdictions} substatesByState={substateCatalog} responsibles={responsibleOptions} customFields={customFields} onCreate={createCase} onCancel={() => navigate("#/client/searchinf")} />
+            <CreateCasePage states={judicialStates.length ? judicialStates : defaultJudicialStates} portfolios={portfolios} jurisdictions={jurisdictions} substatesByState={substateCatalog} responsibles={responsibleOptions} customFields={customFields} onCreate={createCase} onCancel={() => navigate("#/client/searchinf")} onImportCases={() => navigate("#/client/cases/import")} onCreatePortfolio={() => navigate("#/client/configuracion/portfolio")} />
           ) : route === "#/client/cases/import" ? (
             <ImportCasesPage defaultState={judicialStates[0] || "En trámite"} customFields={customFields} onImport={importCases} onCancel={() => navigate("#/client/searchinf")} />
           ) : route === "#/client/admmassive" ? (
@@ -898,9 +960,10 @@ function CaseEntriesTab({ tab, caseId, onSaved }: { tab: string; caseId: string;
     {loading ? <div className="empty-table">Cargando…</div> : filtered.length ? <div className="table-wrap"><table><thead><tr>{columns.map((column) => <th key={column}>{column}</th>)}<th>Acción</th></tr></thead><tbody>{filtered.map((entry) => <tr key={entry.id}>{columns.map((column) => <td key={column}>{cell(entry, column)}</td>)}<td><button className="text-button" onClick={() => editEntry(entry)}>Editar</button><button className="text-button danger-text" onClick={() => void removeEntry(entry.id)}>Eliminar</button></td></tr>)}</tbody></table></div> : <div className="empty-table">No hay registros todavía. Usa “Nuevo” para agregar uno.</div>}
   </section>;
 }
-function CreateCasePage({ states, portfolios, jurisdictions, substatesByState, responsibles, customFields, onCreate, onCancel }: { states: string[]; portfolios: string[]; jurisdictions: string[]; substatesByState: Record<string, string[]>; responsibles: string[]; customFields: CaseField[]; onCreate: (fields: Record<string, string>) => void; onCancel: () => void }) {
+function CreateCasePage({ states, portfolios, jurisdictions, substatesByState, responsibles, customFields, onCreate, onCancel, onImportCases, onCreatePortfolio }: { states: string[]; portfolios: string[]; jurisdictions: string[]; substatesByState: Record<string, string[]>; responsibles: string[]; customFields: CaseField[]; onCreate: (fields: Record<string, string>) => void; onCancel: () => void; onImportCases: () => void; onCreatePortfolio: () => void }) {
   const [form, setForm] = useState({ number: "", title: "", claimant: "", defendant: "", type: "", year: String(new Date().getFullYear()), amount: "", jurisdiction: "Capital", court: "", responsible: "Sin asignar", portfolio: "General", substate: "Pendiente", state: "En trámite" });
   const [customValues, setCustomValues] = useState<Record<string, string>>({});
+  const [mode, setMode] = useState<"importacion" | "carga">("importacion");
   useEffect(() => {
     if (states.length && !states.includes(form.state)) setForm((current) => ({ ...current, state: states[0] }));
   }, [states, form.state]);
@@ -914,7 +977,32 @@ function CreateCasePage({ states, portfolios, jurisdictions, substatesByState, r
     onCreate({ ...form, ...customValues, id: `LOCAL-${Date.now()}`, expediente: form.number, created: new Date().toLocaleDateString("es-AR"), secretary: "—", judge: "—", process: form.type, lastUpdate: new Date().toLocaleDateString("es-AR"), lastOrder: "—", location: "—" });
   }
 
-  return <><div className="page-title-row"><div><p className="eyebrow">CASOS / ADMINISTRACIÓN</p><h1>Alta de caso</h1><p className="muted">El registro quedará guardado en la base SQLite local.</p></div><button className="secondary-button" onClick={onCancel}>Volver a búsqueda</button></div><section className="panel fields-panel"><form onSubmit={submit}><div className="fields-grid">{([ ["number", "Número de expediente"], ["title", "Carátula"], ["claimant", "Demandante"], ["defendant", "Demandado"], ["type", "Tipo de caso"], ["year", "Año"], ["amount", "Monto"], ["court", "Juzgado"] ] as const).map(([key, label]) => <label className="field" key={key}><span>{label}</span><input required={key === "number"} value={form[key]} onChange={(event) => setForm((current) => ({ ...current, [key]: event.target.value }))} /></label>)}<label className="field"><span>Jurisdicción</span><select value={form.jurisdiction} onChange={(event) => setForm((current) => ({ ...current, jurisdiction: event.target.value }))}>{jurisdictions.map((value) => <option key={value}>{value}</option>)}</select></label><label className="field"><span>Portfolio</span><select value={form.portfolio} onChange={(event) => setForm((current) => ({ ...current, portfolio: event.target.value }))}>{portfolios.map((value) => <option key={value}>{value}</option>)}</select></label><label className="field"><span>Subestado</span><select value={form.substate} onChange={(event) => setForm((current) => ({ ...current, substate: event.target.value }))}>{!substateOptions.length && <option value="">Sin subestado</option>}{substateOptions.map((value) => <option key={value}>{value}</option>)}</select></label><label className="field"><span>Responsable</span><select value={form.responsible} onChange={(event) => setForm((current) => ({ ...current, responsible: event.target.value }))}>{responsibles.map((value) => <option key={value}>{value}</option>)}</select></label><label className="field"><span>Estado judicial</span><select value={form.state} onChange={(event) => { const state = event.target.value; const options = substatesFor(substatesByState, state); setForm((current) => ({ ...current, state, substate: options.includes(current.substate) ? current.substate : options[0] || "" })); }}>{states.map((state) => <option key={state}>{state}</option>)}</select></label>{customFields.map((field) => <label className="field" key={field.key}><span>{field.label}</span><input type={field.inputType || "text"} value={customValues[field.key] || ""} onChange={(event) => setCustomValues((current) => ({ ...current, [field.key]: event.target.value }))} /></label>)}</div><div className="modal-actions"><button type="button" className="secondary-button" onClick={onCancel}>Cancelar</button><button className="primary-button" type="submit">Guardar caso</button></div></form></section></>;
+  return <>
+    <div className="page-title-row"><div><p className="eyebrow">CASOS / ADMINISTRACIÓN</p><h1>Alta de casos</h1><p className="muted">Importación desde portal o carga manual guardada en SQLite local.</p></div><div className="title-actions"><button className="secondary-button" onClick={onCancel}>Volver a búsqueda</button></div></div>
+    <section className="tabs-row" role="tablist" aria-label="Modo de alta de casos">
+      <button role="tab" aria-selected={mode === "importacion"} className={mode === "importacion" ? "tab active-tab" : "tab"} onClick={() => setMode("importacion")}>Importación</button>
+      <button role="tab" aria-selected={mode === "carga"} className={mode === "carga" ? "tab active-tab" : "tab"} onClick={() => setMode("carga")}>Carga Masiva</button>
+    </section>
+    {mode === "importacion" ? (
+      <section className="panel import-panel">
+        <div className="filter-grid">
+          <label className="field"><span>Portal:</span><select><option>Seleccione un Portal</option>{portfolios.map((value) => <option key={value}>{value}</option>)}</select></label>
+          <label className="field"><span>Usuario:</span><select disabled><option>Seleccione un Usuario</option></select></label>
+        </div>
+        <div className="modal-actions"><button className="primary-button" disabled>Buscar Juicios</button></div>
+        <div className="import-empty">
+          <h3>Configure los filtros y busque juicios</h3>
+          <p>Seleccione un portal y los usuarios para comenzar a buscar juicios disponibles para importar.</p>
+          <p>Recuerde que deberá tener al menos un portfolio al cual asignar las causas.</p>
+          <button className="secondary-button" onClick={onCreatePortfolio}>Crear portfolio</button>
+        </div>
+      </section>
+    ) : (
+      <section className="panel fields-panel">
+        <div className="panel-heading"><div><h3>Carga individual o por CSV</h3><p>Los registros quedarán guardados en la base SQLite local.</p></div></div>
+        <form onSubmit={submit}><div className="fields-grid">{([ ["number", "Número de expediente"], ["title", "Carátula"], ["claimant", "Demandante"], ["defendant", "Demandado"], ["type", "Tipo de caso"], ["year", "Año"], ["amount", "Monto"], ["court", "Juzgado"] ] as const).map(([key, label]) => <label className="field" key={key}><span>{label}</span><input required={key === "number"} value={form[key]} onChange={(event) => setForm((current) => ({ ...current, [key]: event.target.value }))} /></label>)}<label className="field"><span>Jurisdicción</span><select value={form.jurisdiction} onChange={(event) => setForm((current) => ({ ...current, jurisdiction: event.target.value }))}>{jurisdictions.map((value) => <option key={value}>{value}</option>)}</select></label><label className="field"><span>Portfolio</span><select value={form.portfolio} onChange={(event) => setForm((current) => ({ ...current, portfolio: event.target.value }))}>{portfolios.map((value) => <option key={value}>{value}</option>)}</select></label><label className="field"><span>Subestado</span><select value={form.substate} onChange={(event) => setForm((current) => ({ ...current, substate: event.target.value }))}>{!substateOptions.length && <option value="">Sin subestado</option>}{substateOptions.map((value) => <option key={value}>{value}</option>)}</select></label><label className="field"><span>Responsable</span><select value={form.responsible} onChange={(event) => setForm((current) => ({ ...current, responsible: event.target.value }))}>{responsibles.map((value) => <option key={value}>{value}</option>)}</select></label><label className="field"><span>Estado judicial</span><select value={form.state} onChange={(event) => { const state = event.target.value; const options = substatesFor(substatesByState, state); setForm((current) => ({ ...current, state, substate: options.includes(current.substate) ? current.substate : options[0] || "" })); }}>{states.map((state) => <option key={state}>{state}</option>)}</select></label>{customFields.map((field) => <label className="field" key={field.key}><span>{field.label}</span><input type={field.inputType || "text"} value={customValues[field.key] || ""} onChange={(event) => setCustomValues((current) => ({ ...current, [field.key]: event.target.value }))} /></label>)}</div><div className="modal-actions"><button type="button" className="secondary-button" onClick={onImportCases}>⇩ Importar casos CSV</button><button type="button" className="secondary-button" onClick={onCancel}>Cancelar</button><button className="primary-button" type="submit">Guardar caso</button></div></form></section>
+    )}
+  </>;
 }
 
 function parseCsv(text: string): string[][] {
@@ -972,6 +1060,83 @@ function downloadCsvTemplate(headers: string[], filename: string) {
   const link = document.createElement("a"); link.href = url; link.download = filename; link.click(); URL.revokeObjectURL(url);
 }
 
+function BulkCsvWizard({ templateHeaders, templateName, firstStep, onRows }: { templateHeaders: string[]; templateName: string; firstStep?: { typeLabel: string; templateLabel: string; options: string[] } | null; onRows: (rows: { fields: Record<string, string>; raw: Record<string, string> }[]) => Promise<void> }) {
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [fileName, setFileName] = useState("");
+  const [parsed, setParsed] = useState<{ fields: Record<string, string>; raw: Record<string, string> }[]>([]);
+  const [validated, setValidated] = useState(false);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [typeValue, setTypeValue] = useState("");
+  const [templateValue, setTemplateValue] = useState("");
+  const stepStart = firstStep ? 2 : 1;
+
+  async function validate() {
+    setValidated(false);
+    setError("");
+    setParsed([]);
+    const file = pendingFile;
+    if (!file) { setError("Adjunte un documento primero."); return; }
+    if (!/\.csv$/i.test(file.name)) { setFileName(file.name); setError("Se admite CSV UTF-8; exporte la hoja de Excel como CSV."); return; }
+    setFileName(file.name);
+    const rows = parseCsv(await file.text());
+    if (rows.length < 2) { setError("El documento debe incluir encabezados y filas de datos."); return; }
+    const headers = rows[0].map(normalizeHeader);
+    const data = rows.slice(1).filter((row) => row.some(Boolean)).map((row) => {
+      const raw: Record<string, string> = {};
+      const fields: Record<string, string> = {};
+      headers.forEach((header, index) => {
+        const value = String(row[index] || "").trim();
+        raw[header] = value;
+        const mapped = csvAliases[header];
+        if (mapped && value) fields[mapped] = value;
+      });
+      return { fields, raw };
+    });
+    if (!data.length) { setError("No se encontraron filas de datos."); return; }
+    setParsed(data);
+    setValidated(true);
+  }
+
+  async function load() {
+    setBusy(true);
+    try { await onRows(parsed); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : "No se pudo cargar el documento"); }
+    finally { setBusy(false); }
+  }
+
+  return <section className="panel wizard-panel">
+    {firstStep ? <div className="wizard-step">
+      <span className="step-num">1</span>
+      <div><h3>Seleccionar el tipo de documento a crear</h3><p>Seleccione el template que desea utilizar para generar los documentos:</p>
+        <div className="filter-grid wizard-selects"><label className="field"><span>Tipo de documento:</span><select value={typeValue} onChange={(event) => setTypeValue(event.target.value)}><option value="">Seleccione</option>{firstStep.options.map((option) => <option key={option}>{option}</option>)}</select></label><label className="field"><span>Template:</span><select value={templateValue} onChange={(event) => setTemplateValue(event.target.value)}><option value="">Seleccione</option>{firstStep.options.map((option) => <option key={option}>{option}</option>)}</select></label></div>
+      </div>
+    </div> : null}
+    <div className="wizard-step">
+      <span className="step-num">{stepStart}</span>
+      <div><h3>Crear documento de carga masiva</h3><p>Descargue y complete la siguiente plantilla para crear un documento nuevo de carga masiva:</p></div>
+      <button className="secondary-button" onClick={() => downloadCsvTemplate(templateHeaders, templateName)}>Descargar plantilla</button>
+    </div>
+    <div className="wizard-step">
+      <span className="step-num">{stepStart + 1}</span>
+      <div><h3>Adjuntar documento creado</h3><p>Adjunte el documento creado, arrastrando el archivo o seleccionándolo desde su ordenador:</p>
+        <label className="wizard-dropzone" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); setPendingFile(event.dataTransfer.files?.[0] || null); setValidated(false); setParsed([]); }}>
+          {pendingFile ? pendingFile.name : "Arrastre su plantilla aquí o seleccione desde su ordenador"}
+          <input type="file" accept=".csv,text/csv" hidden onChange={(event) => { setPendingFile(event.target.files?.[0] || null); setValidated(false); setParsed([]); }} />
+        </label>
+        <p className="muted">(Archivos permitidos: csv — exporte la hoja de Excel como CSV UTF-8)</p>
+      </div>
+    </div>
+    <div className="wizard-step">
+      <span className="step-num">{stepStart + 2}</span>
+      <div><h3>Validar documento adjunto</h3><p>Seleccione el botón 'Validar documento' para revisar el archivo adjunto:</p><button className="secondary-button" disabled={!pendingFile} onClick={() => void validate()}>Validar documento</button></div>
+      {validated && <p className="form-message">Documento validado: {fileName} · {parsed.length} filas listas para cargar.</p>}
+    </div>
+    {error && <div className="inline-error" role="alert">{error}</div>}
+    <div className="modal-actions"><button className="primary-button" disabled={!validated || busy} onClick={() => void load()}>{busy ? "Cargando documento…" : `Cargar documento (${parsed.length} filas)`}</button></div>
+  </section>;
+}
+
 function ImportCasesPage({ defaultState, customFields, onImport, onCancel }: { defaultState: string; customFields: CaseField[]; onImport: (rows: { fields: Record<string, string> }[]) => Promise<void>; onCancel: () => void }) {
   const [fileName, setFileName] = useState("");
   const [preview, setPreview] = useState<{ fields: Record<string, string> }[]>([]);
@@ -1019,25 +1184,27 @@ function ImportCasesPage({ defaultState, customFields, onImport, onCancel }: { d
 }
 
 function BulkUpdatePage({ customFields, onUpdate, onCancel }: { customFields: CaseField[]; onUpdate: (rows: { fields: Record<string, string> }[]) => Promise<void>; onCancel: () => void }) {
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [fileName, setFileName] = useState("");
   const [preview, setPreview] = useState<{ fields: Record<string, string> }[]>([]);
   const [skipped, setSkipped] = useState(0);
+  const [validated, setValidated] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
-  async function readFile(file?: File) {
-    if (!file) return;
+  async function readFile(file?: File | null): Promise<boolean> {
+    if (!file) return false;
     setFileName(file.name);
     setError("");
     setPreview([]);
     setSkipped(0);
-    if (!/\.csv$/i.test(file.name)) return setError("Por ahora se admite CSV UTF-8; exporta la hoja de Excel como CSV.");
+    if (!/\.csv$/i.test(file.name)) { setError("Por ahora se admite CSV UTF-8; exporta la hoja de Excel como CSV."); return false; }
     const rows = parseCsv(await file.text());
-    if (rows.length < 2) return setError("El CSV debe incluir encabezados y filas para actualizar.");
+    if (rows.length < 2) { setError("El CSV debe incluir encabezados y filas para actualizar."); return false; }
     const headers = rows[0].map(normalizeHeader);
     const customHeaders = new Map(customFields.map((field) => [normalizeHeader(field.label), field.key]));
     const hasIdentifier = headers.some((header) => csvAliases[header] === "id" || csvAliases[header] === "number");
-    if (!hasIdentifier) return setError("Incluye una columna ID/ExpdteId o Número/ExpdteNro para identificar el caso.");
+    if (!hasIdentifier) { setError("Incluye una columna ID/ExpdteId o Número/ExpdteNro para identificar el caso."); return false; }
     let invalid = 0;
     const parsed = rows.slice(1).map((row) => {
       const fields: Record<string, string> = {};
@@ -1051,7 +1218,14 @@ function BulkUpdatePage({ customFields, onUpdate, onCancel }: { customFields: Ca
     }).filter((item) => item.fields.id || item.fields.number);
     setPreview(parsed);
     setSkipped(invalid);
-    if (!parsed.length) setError("No se encontraron filas actualizables.");
+    if (!parsed.length) { setError("No se encontraron filas actualizables."); return false; }
+    return true;
+  }
+
+  async function validate() {
+    setValidated(false);
+    const ok = await readFile(pendingFile);
+    setValidated(ok);
   }
 
   async function apply() {
@@ -1060,16 +1234,46 @@ function BulkUpdatePage({ customFields, onUpdate, onCancel }: { customFields: Ca
     finally { setBusy(false); }
   }
 
-  return <><div className="page-title-row"><div><p className="eyebrow">CASOS / PORTFOLIO</p><h1>Actualización masiva</h1><p className="muted">Actualiza campos de casos existentes por ID o número de expediente.</p></div><button className="secondary-button" onClick={onCancel}>Volver</button></div><section className="panel table-panel"><button className="secondary-button template-button" onClick={() => downloadCsvTemplate(["ID", "ExpdteNro", "Estado", "Carátula", "Demandante", "Demandado", "Tipo", "Año", "Monto", "Jurisdicción", "Juzgado", "Portfolio", "Subestado", "Responsable", ...customFields.map((field) => field.label)], "plantilla-actualizacion-casos.csv")}>Descargar plantilla CSV</button><label className="field import-file"><span>Archivo CSV</span><input type="file" accept=".csv,text/csv" onChange={(event) => void readFile(event.target.files?.[0])}/></label>{fileName && <p className="muted">{fileName} · {preview.length} filas válidas · {skipped} sin identificador.</p>}{error && <div className="inline-error" role="alert">{error}</div>}{preview.length > 0 && <><div className="table-wrap"><table><thead><tr><th>ID</th><th>Número</th><th>Estado</th><th>Carátula</th><th>Demandante</th><th>Demandado</th></tr></thead><tbody>{preview.slice(0, 10).map((item, index) => <tr key={`${item.fields.id || item.fields.number}-${index}`}><td>{item.fields.id || "—"}</td><td>{item.fields.number || "—"}</td><td>{item.fields.state || "—"}</td><td>{item.fields.title || "—"}</td><td>{item.fields.claimant || "—"}</td><td>{item.fields.defendant || "—"}</td></tr>)}</tbody></table></div><p className="muted">Si un número coincide con varios casos, esa fila se informará como ambigua y no se actualizará. Usa el ID interno para desambiguar.</p><div className="modal-actions"><button className="primary-button" disabled={busy} onClick={() => void apply()}>{busy ? "Actualizando…" : `Aplicar a ${preview.length} filas`}</button></div></>}</section></>;
+  return <>
+    <div className="page-title-row"><div><p className="eyebrow">CASOS / PORTFOLIO</p><h1>Actualización masiva</h1><p className="muted">Actualiza campos de casos existentes por ID o número de expediente. Máximo 4000 registros por lote.</p></div><button className="secondary-button" onClick={onCancel}>Volver</button></div>
+    <section className="panel wizard-panel">
+      <div className="wizard-step">
+        <span className="step-num">1</span>
+        <div><h3>Crear documento de carga masiva</h3><p>Descargue y complete la siguiente plantilla para crear un documento nuevo de carga masiva:</p></div>
+        <button className="secondary-button" onClick={() => downloadCsvTemplate(["ID", "ExpdteNro", "Estado", "Carátula", "Demandante", "Demandado", "Tipo", "Año", "Monto", "Jurisdicción", "Juzgado", "Portfolio", "Subestado", "Responsable", ...customFields.map((field) => field.label)], "plantilla-actualizacion-casos.csv")}>Descargar plantilla</button>
+      </div>
+      <div className="wizard-step">
+        <span className="step-num">2</span>
+        <div><h3>Adjuntar documento creado</h3><p>Adjunte el documento creado, arrastrando el archivo o seleccionándolo desde su ordenador:</p>
+          <label className="wizard-dropzone" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); setPendingFile(event.dataTransfer.files?.[0] || null); setValidated(false); setPreview([]); }}>
+            {pendingFile ? pendingFile.name : "Arrastre su plantilla aquí o seleccione desde su ordenador"}
+            <input type="file" accept=".csv,text/csv" hidden onChange={(event) => { setPendingFile(event.target.files?.[0] || null); setValidated(false); setPreview([]); }} />
+          </label>
+          <p className="muted">(Archivos permitidos: csv — exporte la hoja de Excel como CSV UTF-8)</p>
+        </div>
+      </div>
+      <div className="wizard-step">
+        <span className="step-num">3</span>
+        <div><h3>Validar documento adjunto</h3><p>Seleccione el botón 'Validar documento' para revisar el archivo adjunto:</p><button className="secondary-button" disabled={!pendingFile} onClick={() => void validate()}>Validar documento</button></div>
+        {validated && <p className="form-message">Documento validado: {fileName} · {preview.length} filas válidas · {skipped} sin identificador.</p>}
+      </div>
+      {error && <div className="inline-error" role="alert">{error}</div>}
+      {validated && preview.length > 0 && <div className="table-wrap"><table><thead><tr><th>ID</th><th>Número</th><th>Estado</th><th>Carátula</th><th>Demandante</th><th>Demandado</th></tr></thead><tbody>{preview.slice(0, 10).map((item, index) => <tr key={`${item.fields.id || item.fields.number}-${index}`}><td>{item.fields.id || "—"}</td><td>{item.fields.number || "—"}</td><td>{item.fields.state || "—"}</td><td>{item.fields.title || "—"}</td><td>{item.fields.claimant || "—"}</td><td>{item.fields.defendant || "—"}</td></tr>)}</tbody></table></div>}
+      <p className="muted">Si un número coincide con varios casos, esa fila se informará como ambigua y no se actualizará. Usa el ID interno para desambiguar.</p>
+      <div className="modal-actions"><button className="primary-button" disabled={!validated || busy} onClick={() => void apply()}>{busy ? "Cargando documento…" : `Cargar documento (${preview.length} filas)`}</button></div>
+    </section>
+  </>;
 }
 
-function SearchPage({ search, setSearch, cases, customFields, openCase, onCreate }: { search: string; setSearch: (v: string) => void; cases: CaseRecord[]; customFields: CaseField[]; openCase: (id: string) => void; onCreate: () => void }) {
+function SearchPage({ search, setSearch, cases, customFields, openCase, onCreate, globalPortfolio }: { search: string; setSearch: (v: string) => void; cases: CaseRecord[]; customFields: CaseField[]; openCase: (id: string) => void; onCreate: () => void; globalPortfolio: string }) {
   const [stateFilter, setStateFilter] = useState("");
   const [portfolioFilter, setPortfolioFilter] = useState("");
   const [sortBy, setSortBy] = useState("recent");
   const states = [...new Set(cases.map((item) => item.fields.state).filter(Boolean))];
   const portfolios = [...new Set(cases.map((item) => item.fields.portfolio).filter(Boolean))];
-  const rows = cases.filter((item) => JSON.stringify(item.fields).toLowerCase().includes(search.toLowerCase()) && (!stateFilter || item.fields.state === stateFilter) && (!portfolioFilter || item.fields.portfolio === portfolioFilter)).slice().sort((a, b) => sortBy === "number" ? String(a.fields.number || "").localeCompare(String(b.fields.number || ""), "es", { numeric: true }) : Date.parse(b.updatedAt || b.createdAt || "") - Date.parse(a.updatedAt || a.createdAt || ""));
+  useEffect(() => { setPortfolioFilter(globalPortfolio); }, [globalPortfolio]);
+  const effectivePortfolio = globalPortfolio || portfolioFilter;
+  const rows = cases.filter((item) => JSON.stringify(item.fields).toLowerCase().includes(search.toLowerCase()) && (!stateFilter || item.fields.state === stateFilter) && (!effectivePortfolio || item.fields.portfolio === effectivePortfolio)).slice().sort((a, b) => sortBy === "number" ? String(a.fields.number || "").localeCompare(String(b.fields.number || ""), "es", { numeric: true }) : Date.parse(b.updatedAt || b.createdAt || "") - Date.parse(a.updatedAt || a.createdAt || ""));
   function exportCases() {
     const headers = ["ID", "Expediente", "Carátula", "Demandante", "Demandado", "Tipo", "Estado", "Portfolio", "Jurisdicción", "Responsable", "Actualizado", ...customFields.map((field) => field.label)];
     const data = [headers, ...rows.map((item) => [item.fields.id || item.id, item.fields.number || "", item.fields.title || "", item.fields.claimant || "", item.fields.defendant || "", item.fields.type || "", item.fields.state || "", item.fields.portfolio || "", item.fields.jurisdiction || "", item.fields.responsible || "", item.updatedAt || "", ...customFields.map((field) => item.fields[field.key] || "")])];
@@ -1077,14 +1281,14 @@ function SearchPage({ search, setSearch, cases, customFields, openCase, onCreate
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
     const link = document.createElement("a"); link.href = url; link.download = "casos-local.csv"; link.click(); URL.revokeObjectURL(url);
   }
-  return <><div className="page-title-row"><div><p className="eyebrow">CASOS</p><h1>Búsqueda de casos</h1><p className="muted">Expedientes guardados en la base local.</p></div><div className="title-actions"><button className="secondary-button" onClick={exportCases}>Exportar CSV</button><button className="primary-button" onClick={onCreate}>＋ Alta de caso</button></div></div><section className="panel table-panel"><div className="search-toolbar"><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por expediente, parte o juzgado..."/><button className="secondary-button" onClick={() => setSearch("")}>Limpiar</button><select value={stateFilter} onChange={(event) => setStateFilter(event.target.value)}><option value="">Todos los estados</option>{states.map((state) => <option key={state}>{state}</option>)}</select><select value={portfolioFilter} onChange={(event) => setPortfolioFilter(event.target.value)}><option value="">Todos los portfolios</option>{portfolios.map((portfolio) => <option key={portfolio}>{portfolio}</option>)}</select><select value={sortBy} onChange={(event) => setSortBy(event.target.value)}><option value="recent">Más recientes</option><option value="number">Número de expediente</option></select><span className="muted">{rows.length} resultados</span></div>{rows.length ? <div className="table-wrap"><table><thead><tr>{["ID", "Expediente", "Carátula", "Tipo", "Estado", "Portfolio", "Responsable", ""].map((header) => <th key={header}>{header}</th>)}</tr></thead><tbody>{rows.map((record) => { const f = record.fields; return <tr key={record.id}><td>{f.id || record.id}</td><td>{f.number || "—"}</td><td>{f.title || `${f.claimant || "—"} c/ ${f.defendant || "—"}`}</td><td>{f.type || "—"}</td><td><span className="status-pill table-status">{f.state || "Sin estado"}</span></td><td>{f.portfolio || "—"}</td><td>{f.responsible || "Sin asignar"}</td><td><button className="text-button" onClick={() => openCase(record.id)}>Abrir →</button></td></tr>; })}</tbody></table></div> : <div className="empty-table">No hay expedientes. Usa “Alta de caso” para crear el primero.</div>}</section></>;
+  return <><div className="page-title-row"><div><p className="eyebrow">CASOS</p><h1>Búsqueda de casos</h1><p className="muted">Expedientes guardados en la base local{effectivePortfolio ? ` · filtrado por ${effectivePortfolio}` : ""}.</p></div><div className="title-actions"><button className="secondary-button" onClick={exportCases}>Exportar CSV</button><button className="primary-button" onClick={onCreate}>＋ Alta de caso</button></div></div><section className="panel table-panel"><div className="search-toolbar"><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por expediente, parte o juzgado..."/><button className="secondary-button" onClick={() => setSearch("")}>Limpiar</button><select value={stateFilter} onChange={(event) => setStateFilter(event.target.value)}><option value="">Todos los estados</option>{states.map((state) => <option key={state}>{state}</option>)}</select><select value={effectivePortfolio} disabled={Boolean(globalPortfolio)} onChange={(event) => setPortfolioFilter(event.target.value)}><option value="">Todos los portfolios</option>{portfolios.map((portfolio) => <option key={portfolio}>{portfolio}</option>)}</select><select value={sortBy} onChange={(event) => setSortBy(event.target.value)}><option value="recent">Más recientes</option><option value="number">Número de expediente</option></select><span className="muted">{rows.length} resultados</span></div>{rows.length ? <div className="table-wrap"><table><thead><tr>{["ID", "Expediente", "Carátula", "Tipo", "Estado", "Portfolio", "Responsable", ""].map((header) => <th key={header}>{header}</th>)}</tr></thead><tbody>{rows.map((record) => { const f = record.fields; return <tr key={record.id}><td>{f.id || record.id}</td><td>{f.number || "—"}</td><td>{f.title || `${f.claimant || "—"} c/ ${f.defendant || "—"}`}</td><td>{f.type || "—"}</td><td><span className="status-pill table-status">{f.state || "Sin estado"}</span></td><td>{f.portfolio || "—"}</td><td>{f.responsible || "Sin asignar"}</td><td><button className="text-button" onClick={() => openCase(record.id)}>Abrir →</button></td></tr>; })}</tbody></table></div> : <div className="empty-table">No hay expedientes. Usa “Alta de caso” para crear el primero.</div>}</section></>;
 }
 
-function FollowedCasesPage({ cases, onCaseUpdated, openCase }: { cases: CaseRecord[]; onCaseUpdated: (item: CaseRecord) => void; openCase: (id: string) => void }) {
+function FollowedCasesPage({ cases, onCaseUpdated, openCase, globalPortfolio }: { cases: CaseRecord[]; onCaseUpdated: (item: CaseRecord) => void; openCase: (id: string) => void; globalPortfolio: string }) {
   const [filter, setFilter] = useState("");
   const [error, setError] = useState("");
   const [busyId, setBusyId] = useState("");
-  const followed = cases.filter((item) => item.followed).filter((item) => JSON.stringify(item.fields).toLowerCase().includes(filter.toLowerCase())).slice().sort((a, b) => Date.parse(b.updatedAt || b.createdAt || "") - Date.parse(a.updatedAt || a.createdAt || ""));
+  const followed = cases.filter((item) => item.followed && (!globalPortfolio || item.fields.portfolio === globalPortfolio)).filter((item) => JSON.stringify(item.fields).toLowerCase().includes(filter.toLowerCase())).slice().sort((a, b) => Date.parse(b.updatedAt || b.createdAt || "") - Date.parse(a.updatedAt || a.createdAt || ""));
   async function exportCsv() {
     const rows = [["Expediente", "Carátula", "Demandante", "Demandado", "Estado", "Portfolio"], ...followed.map((item) => [item.fields.number || "", item.fields.title || "", item.fields.claimant || "", item.fields.defendant || "", item.fields.state || "", item.fields.portfolio || ""])];
     const csv = sanitizeCsv(rows.map((row) => row.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(",")).join("\n"));
@@ -1101,7 +1305,7 @@ function FollowedCasesPage({ cases, onCaseUpdated, openCase }: { cases: CaseReco
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Error al actualizar seguimiento"); }
     finally { setBusyId(""); }
   }
-  return <><div className="page-title-row"><div><p className="eyebrow">TRABAJO DIARIO</p><h1>Seguimiento</h1><p className="muted">Expedientes marcados con la estrella.</p></div><button className="secondary-button" onClick={() => void exportCsv()}>Exportar CSV</button></div><section className="panel table-panel">{error && <div className="inline-error" role="alert">{error}</div>}<div className="search-toolbar"><input value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Buscar en expedientes seguidos..."/><button className="secondary-button" onClick={() => setFilter("")}>Limpiar</button><span className="muted">{followed.length} expedientes</span></div>{followed.length ? <div className="table-wrap"><table><thead><tr><th>Expediente</th><th>Carátula</th><th>Demandante</th><th>Demandado</th><th>Estado</th><th>Portfolio</th><th>Acción</th></tr></thead><tbody>{followed.map((record) => <tr key={record.id}><td>{record.fields.number || "—"}</td><td>{record.fields.title || "—"}</td><td>{record.fields.claimant || "—"}</td><td>{record.fields.defendant || "—"}</td><td>{record.fields.state || "Sin estado"}</td><td>{record.fields.portfolio || "—"}</td><td><button className="text-button" onClick={() => openCase(record.id)}>Abrir →</button><button className="text-button danger-text" disabled={busyId === record.id} onClick={() => void removeFollow(record)}>{busyId === record.id ? "Actualizando…" : "Quitar"}</button></td></tr>)}</tbody></table></div> : <div className="empty-table">No hay expedientes en seguimiento. Marca la estrella en una ficha para agregarla aquí.</div>}</section></>;
+  return <><div className="page-title-row"><div><p className="eyebrow">TRABAJO DIARIO</p><h1>Seguimiento</h1><p className="muted">Expedientes marcados con la estrella{globalPortfolio ? ` · filtrado por ${globalPortfolio}` : ""}.</p></div><button className="secondary-button" onClick={() => void exportCsv()}>Exportar CSV</button></div><section className="panel table-panel">{error && <div className="inline-error" role="alert">{error}</div>}<div className="search-toolbar"><input value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Buscar en expedientes seguidos..."/><button className="secondary-button" onClick={() => setFilter("")}>Limpiar</button><span className="muted">{followed.length} expedientes</span></div>{followed.length ? <div className="table-wrap"><table><thead><tr><th>Expediente</th><th>Carátula</th><th>Demandante</th><th>Demandado</th><th>Estado</th><th>Portfolio</th><th>Acción</th></tr></thead><tbody>{followed.map((record) => <tr key={record.id}><td>{record.fields.number || "—"}</td><td>{record.fields.title || "—"}</td><td>{record.fields.claimant || "—"}</td><td>{record.fields.defendant || "—"}</td><td>{record.fields.state || "Sin estado"}</td><td>{record.fields.portfolio || "—"}</td><td><button className="text-button" onClick={() => openCase(record.id)}>Abrir →</button><button className="text-button danger-text" disabled={busyId === record.id} onClick={() => void removeFollow(record)}>{busyId === record.id ? "Actualizando…" : "Quitar"}</button></td></tr>)}</tbody></table></div> : <div className="empty-table">No hay expedientes en seguimiento. Marca la estrella en una ficha para agregarla aquí.</div>}</section></>;
 }
 
 function ReportsPage({ cases, customFields, onSaved }: { cases: CaseRecord[]; customFields: CaseField[]; onSaved: (message: string) => void }) {
@@ -1113,6 +1317,11 @@ function ReportsPage({ cases, customFields, onSaved }: { cases: CaseRecord[]; cu
   const [toDate, setToDate] = useState("");
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
+  const standardColumns: [string, string][] = [["Expediente", "number"], ["Carátula", "title"], ["Demandante", "claimant"], ["Demandante - dirección completa", "claimantAddress"], ["Demandado", "defendant"], ["Demandado - dirección completa", "defendantAddress"], ["Tipo de caso", "type"], ["Año", "year"], ["Estado judicial", "state"], ["Subestado", "substate"], ["Estado extra judicial", "extraJudicialState"], ["Portfolio", "portfolio"], ["Jurisdicción", "jurisdiction"], ["Juzgado", "court"], ["Abogado designado", "responsible"], ["Usuario designado", "assignedUser"], ["Monto", "amount"], ["Fecha de alta", "created"], ["Último proveído", "lastOrder"], ["Último proveído juez", "lastJudgeOrder"], ["Comodín 1", "custom1"], ["Comodín 2", "custom2"], ["Comodín 3", "custom3"], ["Comodín 4", "custom4"], ["Comodín 5", "custom5"], ["Comodín 6", "custom6"]];
+  const standardLabels = new Set(standardColumns.map(([label]) => label));
+  const columnCatalog: [string, string][] = [...standardColumns, ...customFields.filter((field) => !standardLabels.has(field.label)).map((field) => [field.label, field.key] as [string, string])];
+  const [selectedColumns, setSelectedColumns] = useState<string[]>([]);
+  const activeColumns = selectedColumns.length ? columnCatalog.filter(([label]) => selectedColumns.includes(label)) : columnCatalog;
   const states = [...new Set(cases.map((item) => item.fields.state).filter(Boolean))];
   const types = [...new Set(cases.map((item) => item.fields.type).filter(Boolean))];
   const portfolios = [...new Set(cases.map((item) => item.fields.portfolio).filter(Boolean))];
@@ -1133,7 +1342,7 @@ function ReportsPage({ cases, customFields, onSaved }: { cases: CaseRecord[]; cu
   const total = rows.reduce((sum, item) => sum + parseAmount(item.fields.amount), 0);
 
   function exportReport() {
-    const lines = [["Expediente", "Demandante", "Demandado", "Tipo", "Estado", "Portfolio", "Jurisdicción", "Monto", ...customFields.map((field) => field.label)], ...rows.map((item) => [item.fields.number || "", item.fields.claimant || "", item.fields.defendant || "", item.fields.type || "", item.fields.state || "", item.fields.portfolio || "", item.fields.jurisdiction || "", item.fields.amount || "", ...customFields.map((field) => item.fields[field.key] || "")])];
+    const lines = [activeColumns.map(([label]) => label), ...rows.map((item) => activeColumns.map(([, key]) => item.fields[key] || ""))];
     const csv = lines.map((line) => line.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(",")).join("\n");
     const link = document.createElement("a");
     link.href = URL.createObjectURL(new Blob([sanitizeCsv(csv)], { type: "text/csv;charset=utf-8" }));
@@ -1175,7 +1384,7 @@ function ReportsPage({ cases, customFields, onSaved }: { cases: CaseRecord[]; cu
     }
   }
 
-  return <><div className="page-title-row"><div><p className="eyebrow">SEGUIMIENTO</p><h1>Reportes</h1><p className="muted">Filtra casos y calcula sumatorias sobre la base local.</p></div><button className="secondary-button" onClick={() => window.print()}>Imprimir</button></div><section className="panel report-builder"><div className="form-grid"><label className="field"><span>Estado judicial</span><select value={stateFilter} onChange={(event) => setStateFilter(event.target.value)}><option value="">Todos</option>{states.map((value) => <option key={value}>{value}</option>)}</select></label><label className="field"><span>Tipo de caso</span><select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)}><option value="">Todos</option>{types.map((value) => <option key={value}>{value}</option>)}</select></label><label className="field"><span>Portfolio</span><select value={portfolioFilter} onChange={(event) => setPortfolioFilter(event.target.value)}><option value="">Todos</option>{portfolios.map((value) => <option key={value}>{value}</option>)}</select></label><label className="field"><span>Jurisdicción</span><select value={jurisdictionFilter} onChange={(event) => setJurisdictionFilter(event.target.value)}><option value="">Todas</option>{jurisdictions.map((value) => <option key={value}>{value}</option>)}</select></label><label className="field"><span>Alta desde</span><input type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} /></label><label className="field"><span>Alta hasta</span><input type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} /></label><label className="field"><span>Guardar como</span><input value={name} onChange={(event) => setName(event.target.value)} placeholder="Ej. Casos en trámite" /></label></div><div className="report-summary"><div><span>Casos filtrados</span><strong>{rows.length}</strong></div><div><span>Sumatoria de montos</span><strong>{formatAmount(total)}</strong></div><div><span>Base</span><strong>SQLite local</strong></div></div><div className="modal-actions"><button className="secondary-button" onClick={exportReport}>Exportar CSV</button><button className="primary-button" onClick={() => void saveReport()} disabled={!name.trim() || saving}>{saving ? "Guardando…" : "Guardar en Mis reportes"}</button></div></section><section className="panel table-panel report-results"><div className="panel-heading"><div><h3>Detalle del reporte</h3><p>Los registros y la sumatoria se actualizan con los filtros.</p></div></div><div className="table-wrap"><table><thead><tr>{["Expediente", "Demandante", "Demandado", "Tipo", "Estado", "Portfolio", "Jurisdicción", "Monto"].map((header) => <th key={header}>{header}</th>)}</tr></thead><tbody>{rows.map((item) => <tr key={item.id}><td>{item.fields.number || "—"}</td><td>{item.fields.claimant || "—"}</td><td>{item.fields.defendant || "—"}</td><td>{item.fields.type || "—"}</td><td>{item.fields.state || "—"}</td><td>{item.fields.portfolio || "—"}</td><td>{item.fields.jurisdiction || "—"}</td><td>{item.fields.amount || "—"}</td></tr>)}</tbody></table></div></section></>;
+  return <><div className="page-title-row"><div><p className="eyebrow">SEGUIMIENTO</p><h1>Reportes</h1><p className="muted">Filtra casos y calcula sumatorias sobre la base local.</p></div><button className="secondary-button" onClick={() => window.print()}>Imprimir</button></div><section className="panel report-builder"><div className="form-grid"><label className="field"><span>Estado judicial</span><select value={stateFilter} onChange={(event) => setStateFilter(event.target.value)}><option value="">Todos</option>{states.map((value) => <option key={value}>{value}</option>)}</select></label><label className="field"><span>Tipo de caso</span><select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)}><option value="">Todos</option>{types.map((value) => <option key={value}>{value}</option>)}</select></label><label className="field"><span>Portfolio</span><select value={portfolioFilter} onChange={(event) => setPortfolioFilter(event.target.value)}><option value="">Todos</option>{portfolios.map((value) => <option key={value}>{value}</option>)}</select></label><label className="field"><span>Jurisdicción</span><select value={jurisdictionFilter} onChange={(event) => setJurisdictionFilter(event.target.value)}><option value="">Todas</option>{jurisdictions.map((value) => <option key={value}>{value}</option>)}</select></label><label className="field"><span>Alta desde</span><input type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} /></label><label className="field"><span>Alta hasta</span><input type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} /></label><label className="field"><span>Guardar como</span><input value={name} onChange={(event) => setName(event.target.value)} placeholder="Ej. Casos en trámite" /></label></div><div className="report-summary"><div><span>Casos filtrados</span><strong>{rows.length}</strong></div><div><span>Sumatoria de montos</span><strong>{formatAmount(total)}</strong></div><div><span>Base</span><strong>SQLite local</strong></div></div><div className="modal-actions"><button className="secondary-button" onClick={exportReport}>Exportar CSV</button><button className="primary-button" onClick={() => void saveReport()} disabled={!name.trim() || saving}>{saving ? "Guardando…" : "Guardar en Mis reportes"}</button></div></section><section className="panel report-builder"><div className="panel-heading"><div><h3>Seleccionar los datos que se desean mostrar</h3><p>Elige las columnas del detalle y de la exportación.</p></div></div><div className="column-picker"><button className="secondary-button" onClick={() => setSelectedColumns(selectedColumns.length === columnCatalog.length ? [] : columnCatalog.map(([label]) => label))}>{selectedColumns.length === columnCatalog.length ? "Deseleccionar todos" : "Seleccionar todos"}</button>{columnCatalog.map(([label, key]) => <label key={key} className="check-item"><input type="checkbox" checked={selectedColumns.includes(label)} onChange={(event) => setSelectedColumns((current) => event.target.checked ? [...current, label] : current.filter((value) => value !== label))} /><span>{label}</span></label>)}</div></section><section className="panel table-panel report-results"><div className="panel-heading"><div><h3>Detalle del reporte</h3><p>Los registros y la sumatoria se actualizan con los filtros.</p></div></div><div className="table-wrap"><table><thead><tr>{activeColumns.map(([label]) => <th key={label}>{label}</th>)}</tr></thead><tbody>{rows.map((item) => <tr key={item.id}>{activeColumns.map(([label, key]) => <td key={label}>{item.fields[key] || "—"}</td>)}</tr>)}</tbody></table></div></section></>;
 }
 
 type SavedCaseSnapshot = { number: string; claimant: string; defendant: string; type: string; state: string; portfolio: string; jurisdiction: string; amount: string; customFields?: { key: string; label: string; value: string }[] };
@@ -1521,15 +1730,65 @@ function MovementsPage({ cases, openCase, onSaved }: { cases: CaseRecord[]; open
     const link = document.createElement("a"); link.href = url; link.download = "novedades-juicios-local.csv"; link.click(); URL.revokeObjectURL(url);
   }
 
-  return <><div className="page-title-row"><div><p className="eyebrow">TRABAJO DIARIO</p><h1>Novedades de juicios</h1><p className="muted">Movimientos consolidados desde los expedientes locales.</p></div><div className="title-actions"><button className="secondary-button" onClick={exportCsv}>Exportar CSV</button><button className="primary-button" onClick={() => { resetForm(); setShowForm(true); }}>＋ Registrar movimiento</button></div></div>{error && <div className="inline-error" role="alert">{error}</div>}{showForm && <section className="panel agenda-form-panel"><div className="panel-heading"><div><h3>Nuevo movimiento judicial</h3><p>Se guardará en la pestaña Novedades del caso seleccionado.</p></div></div><form className="agenda-form" onSubmit={(event) => void save(event)}><label className="field"><span>Expediente</span><select required value={caseId} onChange={(event) => setCaseId(event.target.value)}><option value="">Seleccionar expediente</option>{cases.map((item) => <option key={item.id} value={item.id}>{item.fields.number || item.id} · {item.fields.title || "Caso local"}</option>)}</select></label><label className="field"><span>Fecha</span><input type="date" required value={date} onChange={(event) => setDate(event.target.value)} /></label><label className="field"><span>Movimiento</span><input required value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Ej. Presentación ingresada" /></label><label className="field agenda-detail"><span>Descripción</span><textarea rows={3} value={description} onChange={(event) => setDescription(event.target.value)} /></label><div className="modal-actions"><button type="button" className="secondary-button" onClick={() => { resetForm(); setShowForm(false); }}>Cancelar</button><button type="submit" className="primary-button" disabled={busy}>{busy ? "Guardando…" : "Guardar movimiento"}</button></div></form></section>}<section className="panel table-panel report-results"><div className="search-toolbar"><input value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Buscar por expediente, movimiento o juzgado..."/><button className="secondary-button" onClick={() => setFilter("")}>Limpiar</button><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="all">Todos los estados</option><option>Nuevo</option><option>Pendiente</option><option>Revisado</option></select><span className="muted">{filtered.length} novedades</span></div>{loading ? <div className="empty-table">Cargando movimientos locales…</div> : filtered.length ? <div className="table-wrap"><table><thead><tr><th>Fecha</th><th>Expediente</th><th>Movimiento</th><th>Descripción</th><th>Juzgado</th><th>Estado</th><th>Acción</th></tr></thead><tbody>{filtered.map((item) => <tr key={item.id}><td>{item.date}</td><td><button className="text-button" onClick={() => openCase(item.caseId)}>{item.caseNumber}</button></td><td>{item.title}</td><td>{item.description || "—"}</td><td>{item.court}</td><td><select aria-label="Estado de novedad" value={item.status} onChange={(event) => void changeStatus(item, event.target.value)}><option>Nuevo</option><option>Pendiente</option><option>Revisado</option></select></td><td><button className="text-button" onClick={() => openCase(item.caseId)}>Abrir caso</button></td></tr>)}</tbody></table></div> : <div className="empty-table">No hay movimientos que coincidan con el filtro.</div>}</section></>;
+  const [tab, setTab] = useState("Notificaciones");
+  const tabsRow = ["Notificaciones", "Proveídos", "Causas sin Movimiento", "Documentos Presentados", "Documentos no presentados"];
+  return <>
+    <div className="page-title-row"><div><p className="eyebrow">TRABAJO DIARIO</p><h1>Novedades de juicios</h1><p className="muted">Movimientos consolidados desde los expedientes locales.</p></div><div className="title-actions"><button className="secondary-button" onClick={exportCsv}>Exportar CSV</button><button className="primary-button" onClick={() => { resetForm(); setShowForm(true); }}>＋ Registrar movimiento</button></div></div>
+    {error && <div className="inline-error" role="alert">{error}</div>}
+    {showForm && <section className="panel agenda-form-panel"><div className="panel-heading"><div><h3>Nuevo movimiento judicial</h3><p>Se guardará en la pestaña Novedades del caso seleccionado.</p></div></div><form className="agenda-form" onSubmit={(event) => void save(event)}><label className="field"><span>Expediente</span><select required value={caseId} onChange={(event) => setCaseId(event.target.value)}><option value="">Seleccionar expediente</option>{cases.map((item) => <option key={item.id} value={item.id}>{item.fields.number || item.id} · {item.fields.title || "Caso local"}</option>)}</select></label><label className="field"><span>Fecha</span><input type="date" required value={date} onChange={(event) => setDate(event.target.value)} /></label><label className="field"><span>Movimiento</span><input required value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Ej. Presentación ingresada" /></label><label className="field agenda-detail"><span>Descripción</span><textarea rows={3} value={description} onChange={(event) => setDescription(event.target.value)} /></label><div className="modal-actions"><button type="button" className="secondary-button" onClick={() => { resetForm(); setShowForm(false); }}>Cancelar</button><button type="submit" className="primary-button" disabled={busy}>{busy ? "Guardando…" : "Guardar movimiento"}</button></div></form></section>}
+    <section className="tabs-row" role="tablist" aria-label="Tipos de novedades">
+      {tabsRow.map((tabName) => <button key={tabName} role="tab" aria-selected={tab === tabName} className={tab === tabName ? "tab active-tab" : "tab"} onClick={() => setTab(tabName)}>{tabName}</button>)}
+    </section>
+    {tab !== "Notificaciones" ? (
+      <section className="panel table-panel"><div className="empty-table">No hay datos para mostrar en {tab}.</div></section>
+    ) : (
+      <section className="panel table-panel report-results">
+        <div className="search-toolbar"><input value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Buscar por expediente, movimiento o juzgado..."/><button className="secondary-button" onClick={() => setFilter("")}>Limpiar</button><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="all">Todos los estados</option><option>Nuevo</option><option>Pendiente</option><option>Revisado</option></select><span className="muted">{filtered.length} novedades</span></div>
+        {loading ? <div className="empty-table">Cargando movimientos locales…</div> : filtered.length ? (
+          <div className="table-wrap"><table><thead><tr>
+            <th><input type="checkbox" aria-label="Seleccionar todas" /></th>
+            <th>ID</th>
+            <th>Expediente</th>
+            <th>Monto</th>
+            <th>Carátula</th>
+            <th>Notificación</th>
+            <th>Fecha</th>
+            <th>Etiquetas con IA</th>
+            <th>Revisión</th>
+            <th>Agenda</th>
+            <th>Acción</th>
+          </tr></thead><tbody>
+            {filtered.map((item) => <tr key={item.id}>
+              <td><input type="checkbox" aria-label={`Seleccionar ${item.id.slice(0, 6)}`} /></td>
+              <td>{item.id.slice(0, 6)}</td>
+              <td><button className="text-button" onClick={() => openCase(item.caseId)}>{item.caseNumber}</button></td>
+              <td>—</td>
+              <td>{item.caseTitle}</td>
+              <td>{item.title}</td>
+              <td>{item.date}</td>
+              <td><span className="tag">—</span></td>
+              <td><select aria-label="Estado de novedad" value={item.status} onChange={(event) => void changeStatus(item, event.target.value)}><option>Nuevo</option><option>Pendiente</option><option>Revisado</option></select></td>
+              <td>—</td>
+              <td><button className="text-button" onClick={() => openCase(item.caseId)}>Abrir caso</button></td>
+            </tr>)}
+          </tbody></table></div>
+        ) : <div className="empty-table">No hay movimientos que coincidan con el filtro.</div>}
+      </section>
+    )}
+  </>;
 }
 
-type DocumentStatusItem = { id: string; caseId: string; section: string; caseNumber: string; title: string; type: string; date: string; status: string; fileName: string; hasFile: boolean; user: string; createdAt: string };
+type DocumentStatusItem = { id: string; caseId: string; section: string; caseNumber: string; caseTitle?: string; title: string; type: string; date: string; status: string; fileName: string; hasFile: boolean; user: string; createdAt: string; portal?: string; process?: string; moment?: string };
 
 function DocumentStatusPage({ openCase, onSaved }: { openCase: (id: string) => void; onSaved: (message: string) => void }) {
   const [items, setItems] = useState<DocumentStatusItem[]>([]);
   const [filter, setFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [portalFilter, setPortalFilter] = useState("all");
+  const [processFilter, setProcessFilter] = useState("all");
+  const [momentFilter, setMomentFilter] = useState("all");
+  const [dateFilter, setDateFilter] = useState("");
+  const [titleFilter, setTitleFilter] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [truncated, setTruncated] = useState(false);
@@ -1553,14 +1812,17 @@ function DocumentStatusPage({ openCase, onSaved }: { openCase: (id: string) => v
     onSaved("Estado del documento actualizado");
   }
   const statuses = [...new Set(items.map((item) => item.status))];
-  const filtered = items.filter((item) => (statusFilter === "all" || item.status === statusFilter) && `${item.caseNumber} ${item.title} ${item.type} ${item.fileName} ${item.user}`.toLowerCase().includes(filter.toLowerCase()));
+  const portals = [...new Set(items.map((item) => item.portal || "Sin portal").filter(Boolean))];
+  const processes = [...new Set(items.map((item) => item.process || item.type).filter(Boolean))];
+  const moments = [...new Set(items.map((item) => item.moment || item.section).filter(Boolean))];
+  const filtered = items.filter((item) => (statusFilter === "all" || item.status === statusFilter) && (portalFilter === "all" || (item.portal || "Sin portal") === portalFilter) && (processFilter === "all" || (item.process || item.type) === processFilter) && (momentFilter === "all" || (item.moment || item.section) === momentFilter) && (!dateFilter || item.date === dateFilter || agendaInputDate(item.date) === dateFilter) && (!titleFilter || (item.caseTitle || "").toLowerCase().includes(titleFilter.toLowerCase())) && `${item.caseNumber} ${item.caseTitle || ""} ${item.title} ${item.type} ${item.fileName} ${item.user}`.toLowerCase().includes(filter.toLowerCase()));
   function exportCsv() {
-    const rows = [["Fecha", "Expediente", "Documento", "Tipo", "Estado", "Archivo", "Sección", "Usuario"], ...filtered.map((item) => [item.date, item.caseNumber, item.title, item.type, item.status, item.fileName, item.section, item.user])];
+    const rows = [["Portal", "Fecha", "Proceso", "Estado", "Momento", "Expediente", "Carátula", "Documento", "Tipo", "Archivo", "Sección", "Usuario"], ...filtered.map((item) => [item.portal || "Sin portal", item.date, item.process || item.type, item.status, item.moment || item.section, item.caseNumber, item.caseTitle || "—", item.title, item.type, item.fileName, item.section, item.user])];
     const csv = rows.map((row) => row.map((value) => `"${String(value || "").replaceAll('"', '""')}"`).join(",")).join("\n");
     const url = URL.createObjectURL(new Blob([sanitizeCsv(csv)], { type: "text/csv;charset=utf-8" }));
     const link = document.createElement("a"); link.href = url; link.download = "estado-documentos-local.csv"; link.click(); URL.revokeObjectURL(url);
   }
-  return <><div className="page-title-row"><div><p className="eyebrow">ADMINISTRACIÓN / DOCUMENTOS</p><h1>Estado de documentos</h1><p className="muted">Documentos y presentaciones asociados a casos locales.</p></div><button className="secondary-button" onClick={exportCsv}>Exportar CSV</button></div><div className="agenda-kpis"><div className="agenda-kpi"><span>Total de registros</span><strong>{items.length}</strong></div><div className="agenda-kpi"><span>Pendientes</span><strong>{items.filter((item) => item.status === "Pendiente" || item.status === "Borrador").length}</strong></div><div className="agenda-kpi"><span>Presentados / aprobados</span><strong>{items.filter((item) => item.status === "Presentado" || item.status === "Aprobado").length}</strong></div></div>{error && <div className="inline-error" role="alert">{error}</div>}{truncated && <p className="muted">Se muestran los 5000 registros más recientes.</p>}<section className="panel table-panel"><div className="search-toolbar"><input value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Buscar por expediente, documento o archivo..."/><button className="secondary-button" onClick={() => setFilter("")}>Limpiar</button><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="all">Todos los estados</option>{statuses.map((status) => <option key={status}>{status}</option>)}</select><span className="muted">{filtered.length} documentos</span></div>{loading ? <div className="empty-table">Cargando documentos…</div> : filtered.length ? <div className="table-wrap"><table><thead><tr><th>Fecha</th><th>Expediente</th><th>Documento</th><th>Tipo</th><th>Archivo</th><th>Estado</th><th>Acción</th></tr></thead><tbody>{filtered.map((item) => <tr key={item.id}><td>{item.date}</td><td><button className="text-button" onClick={() => openCase(item.caseId)}>{item.caseNumber}</button></td><td>{item.title}</td><td>{item.type}</td><td>{item.hasFile ? <a href={`/api/cases/${encodeURIComponent(item.caseId)}/entries/${encodeURIComponent(item.section)}/${encodeURIComponent(item.id)}/file`}>{item.fileName || "Descargar"}</a> : "Sin archivo"}</td><td><select aria-label="Estado del documento" value={item.status} onChange={(event) => void changeStatus(item, event.target.value)}><option>Pendiente</option><option>Borrador</option><option>Presentado</option><option>Observado</option><option>Aprobado</option></select></td><td><button className="text-button" onClick={() => openCase(item.caseId)}>Abrir caso</button></td></tr>)}</tbody></table></div> : <div className="empty-table">No hay documentos para este filtro.</div>}</section></>;
+  return <><div className="page-title-row"><div><p className="eyebrow">ADMINISTRACIÓN / DOCUMENTOS</p><h1>Estado de documentos</h1><p className="muted">Documentos y presentaciones asociados a casos locales.</p></div><button className="secondary-button" onClick={exportCsv}>Exportar CSV</button></div><div className="agenda-kpis"><div className="agenda-kpi"><span>Total de registros</span><strong>{items.length}</strong></div><div className="agenda-kpi"><span>Pendientes</span><strong>{items.filter((item) => item.status === "Pendiente" || item.status === "Borrador").length}</strong></div><div className="agenda-kpi"><span>Presentados / aprobados</span><strong>{items.filter((item) => item.status === "Presentado" || item.status === "Aprobado").length}</strong></div></div>{error && <div className="inline-error" role="alert">{error}</div>}{truncated && <p className="muted">Se muestran los 5000 registros más recientes.</p>}<section className="panel table-panel"><div className="search-toolbar"><input value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Buscar por expediente, documento o archivo..."/><button className="secondary-button" onClick={() => { setFilter(""); setDateFilter(""); setTitleFilter(""); }}>Limpiar</button><input aria-label="Fecha" type="date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} /><input aria-label="Carátula" placeholder="Carátula" value={titleFilter} onChange={(event) => setTitleFilter(event.target.value)} /><select aria-label="Portal" value={portalFilter} onChange={(event) => setPortalFilter(event.target.value)}><option value="all">Todos los portales</option>{portals.map((value) => <option key={value}>{value}</option>)}</select><select aria-label="Proceso" value={processFilter} onChange={(event) => setProcessFilter(event.target.value)}><option value="all">Todos los procesos</option>{processes.map((value) => <option key={value}>{value}</option>)}</select><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="all">Todos los estados</option>{statuses.map((status) => <option key={status}>{status}</option>)}</select><select aria-label="Momento" value={momentFilter} onChange={(event) => setMomentFilter(event.target.value)}><option value="all">Todos los momentos</option>{moments.map((value) => <option key={value}>{value}</option>)}</select><span className="muted">{filtered.length} documentos</span></div>{loading ? <div className="empty-table">Cargando documentos…</div> : filtered.length ? <div className="table-wrap"><table><thead><tr><th>Fecha</th><th>Expediente</th><th>Documento</th><th>Tipo</th><th>Archivo</th><th>Estado</th><th>Acción</th></tr></thead><tbody>{filtered.map((item) => <tr key={item.id}><td>{item.date}</td><td><button className="text-button" onClick={() => openCase(item.caseId)}>{item.caseNumber}</button></td><td>{item.title}</td><td>{item.type}</td><td>{item.hasFile ? <a href={`/api/cases/${encodeURIComponent(item.caseId)}/entries/${encodeURIComponent(item.section)}/${encodeURIComponent(item.id)}/file`}>{item.fileName || "Descargar"}</a> : "Sin archivo"}</td><td><select aria-label="Estado del documento" value={item.status} onChange={(event) => void changeStatus(item, event.target.value)}><option>Pendiente</option><option>Borrador</option><option>Presentado</option><option>Observado</option><option>Aprobado</option></select></td><td><button className="text-button" onClick={() => openCase(item.caseId)}>Abrir caso</button></td></tr>)}</tbody></table></div> : <div className="empty-table">No hay documentos para este filtro.</div>}</section></>;
 }
 
 type FinanceItem = { id: string; caseId: string; caseNumber: string; caseTitle: string; section: "expenses" | "fees"; date: string; dueDate: string; title: string; type: string; amount: string; status: string; fileName: string; hasFile: boolean; createdAt: string };
@@ -1613,6 +1875,8 @@ function MaintenanceHistoryPage({ openCase }: { openCase: (id: string) => void }
   const [error, setError] = useState("");
   const [truncated, setTruncated] = useState(false);
   const [refresh, setRefresh] = useState(0);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
@@ -1625,6 +1889,8 @@ function MaintenanceHistoryPage({ openCase }: { openCase: (id: string) => void }
     return () => { cancelled = true; };
   }, [refresh]);
   const filtered = items.filter((item) => `${item.caseNumber} ${item.action} ${item.detail} ${item.user} ${item.date}`.toLowerCase().includes(filter.toLowerCase()));
+  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const visible = filtered.slice((page - 1) * pageSize, page * pageSize);
   function exportCsv() {
     const rows = [["Fecha", "Usuario", "Acción", "Expediente", "Detalle"], ...filtered.map((item) => [new Date(item.date).toLocaleString("es-AR"), item.user, item.action, item.caseNumber, item.detail])];
     const csv = rows.map((row) => row.map((value) => `"${String(value || "").replaceAll('"', '""')}"`).join(",")).join("\n");
@@ -1632,7 +1898,7 @@ function MaintenanceHistoryPage({ openCase }: { openCase: (id: string) => void }
     const link = document.createElement("a"); link.href = url; link.download = "historial-mantenimiento-local.csv"; link.click(); URL.revokeObjectURL(url);
   }
   const casesAffected = new Set(filtered.map((item) => item.caseId).filter(Boolean)).size;
-  return <><div className="page-title-row"><div><p className="eyebrow">ADMINISTRACIÓN</p><h1>Historial de mantenimiento</h1><p className="muted">Auditoría local de cambios en casos y movimientos. No almacena el contenido de notas o mensajes.</p></div><div className="title-actions"><button className="secondary-button" onClick={() => setRefresh((value) => value + 1)}>Actualizar</button><button className="primary-button" onClick={exportCsv}>Exportar CSV</button></div></div><div className="agenda-kpis"><div className="agenda-kpi"><span>Eventos registrados</span><strong>{items.length}</strong></div><div className="agenda-kpi"><span>Casos involucrados</span><strong>{casesAffected}</strong></div></div>{error && <div className="inline-error" role="alert">{error}</div>}{truncated && <p className="muted">Se muestran los 1000 eventos más recientes.</p>}<section className="panel table-panel"><div className="search-toolbar"><input value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Buscar por expediente, usuario o acción..."/><button className="secondary-button" onClick={() => setFilter("")}>Limpiar</button><span className="muted">{filtered.length} eventos</span></div>{loading ? <div className="empty-table">Cargando historial…</div> : filtered.length ? <div className="table-wrap"><table><thead><tr><th>Fecha</th><th>Usuario</th><th>Acción</th><th>Expediente</th><th>Detalle</th></tr></thead><tbody>{filtered.map((item) => <tr key={item.id}><td>{new Date(item.date).toLocaleString("es-AR")}</td><td>{item.user}</td><td>{item.action}</td><td>{item.caseId ? <button className="text-button" onClick={() => openCase(item.caseId!)}>{item.caseNumber}</button> : item.caseNumber}</td><td>{item.detail}</td></tr>)}</tbody></table></div> : <div className="empty-table">Todavía no hay cambios auditados.</div>}</section></>;
+  return <><div className="page-title-row"><div><p className="eyebrow">ADMINISTRACIÓN</p><h1>Historial de mantenimiento</h1><p className="muted">Auditoría local de cambios en casos y movimientos. No almacena el contenido de notas o mensajes.</p></div><div className="title-actions"><button className="secondary-button" onClick={() => setRefresh((value) => value + 1)}>Actualizar</button><button className="primary-button" onClick={exportCsv}>Exportar CSV</button></div></div><div className="agenda-kpis"><div className="agenda-kpi"><span>Eventos registrados</span><strong>{items.length}</strong></div><div className="agenda-kpi"><span>Casos involucrados</span><strong>{casesAffected}</strong></div></div>{error && <div className="inline-error" role="alert">{error}</div>}{truncated && <p className="muted">Se muestran los 1000 eventos más recientes.</p>}<section className="panel table-panel"><div className="search-toolbar"><input value={filter} onChange={(event) => { setFilter(event.target.value); setPage(1); }} placeholder="Buscar por expediente, usuario o acción..."/><button className="secondary-button" onClick={() => { setFilter(""); setPage(1); }}>Limpiar</button><span className="muted">{filtered.length} eventos</span></div>{loading ? <div className="empty-table">Cargando historial…</div> : filtered.length ? <><div className="table-wrap"><table><thead><tr><th>Fecha</th><th>Usuario</th><th>Acción</th><th>Expediente</th><th>Detalle</th></tr></thead><tbody>{visible.map((item) => <tr key={item.id}><td>{new Date(item.date).toLocaleString("es-AR")}</td><td>{item.user}</td><td>{item.action}</td><td>{item.caseId ? <button className="text-button" onClick={() => openCase(item.caseId!)}>{item.caseNumber}</button> : item.caseNumber}</td><td>{item.detail}</td></tr>)}</tbody></table></div><div className="pagination-bar"><span className="muted">Página {page} de {pageCount}</span><button className="secondary-button" disabled={page <= 1} onClick={() => setPage(1)}>Primera</button><button className="secondary-button" disabled={page <= 1} onClick={() => setPage((value) => value - 1)}>Anterior</button><button className="secondary-button" disabled={page >= pageCount} onClick={() => setPage((value) => value + 1)}>Siguiente</button><button className="secondary-button" disabled={page >= pageCount} onClick={() => setPage(pageCount)}>Última</button><select aria-label="Filas por página" value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1); }}><option value={5}>5</option><option value={10}>10</option><option value={20}>20</option></select></div></> : <div className="empty-table">Todavía no hay cambios auditados.</div>}</section></>;
 }
 
 type IntakeRecord = { id: string; values: string[]; candidateFields?: Record<string, string>; details?: string; caseId?: string; createdCaseId?: string };
@@ -1742,13 +2008,79 @@ function NewCaseIntakePage({ cases, states, substatesByState, onCreated, openCas
     const link = document.createElement("a"); link.href = url; link.download = "nuevos-juicios-local.csv"; link.click(); URL.revokeObjectURL(url);
   }
 
-  return <><div className="page-title-row"><div><p className="eyebrow">CASOS / REVISIÓN</p><h1>Nuevos juicios</h1><p className="muted">Bandeja local para revisar propuestas antes de crear o asociar expedientes.</p></div><div className="title-actions"><button className="secondary-button" onClick={exportCsv}>Exportar CSV</button><button className="primary-button" onClick={() => setShowForm((value) => !value)}>＋ Nueva propuesta</button></div></div>{error && <div className="inline-error" role="alert">{error}</div>}{showForm && <section className="panel agenda-form-panel"><div className="panel-heading"><div><h3>Registrar propuesta</h3><p>La propuesta queda en revisión y no crea un expediente automáticamente.</p></div></div><form className="agenda-form" onSubmit={(event) => void saveProposal(event)}>{([ ["number", "Número de expediente", true], ["title", "Carátula", true], ["claimant", "Demandante", false], ["defendant", "Demandado", false], ["type", "Tipo de caso", false], ["court", "Juzgado", false], ["amount", "Monto", false], ["origin", "Origen", false] ] as const).map(([key, label, required]) => <label className="field" key={key}><span>{label}</span><input required={required} value={draft[key]} onChange={(event) => setDraft((current) => ({ ...current, [key]: event.target.value }))} /></label>)}<label className="field"><span>Jurisdicción</span><select value={draft.jurisdiction} onChange={(event) => setDraft((current) => ({ ...current, jurisdiction: event.target.value }))}>{jurisdictionOptions.map((value) => <option key={value}>{value}</option>)}</select></label><label className="field"><span>Portfolio</span><select value={draft.portfolio} onChange={(event) => setDraft((current) => ({ ...current, portfolio: event.target.value }))}>{portfolioOptions.map((value) => <option key={value}>{value}</option>)}</select></label><label className="field"><span>Responsable</span><select value={draft.responsible} onChange={(event) => setDraft((current) => ({ ...current, responsible: event.target.value }))}>{responsibleOptions.map((value) => <option key={value}>{value}</option>)}</select></label><label className="field agenda-detail"><span>Notas de revisión</span><textarea rows={3} value={draft.details} onChange={(event) => setDraft((current) => ({ ...current, details: event.target.value }))} /></label><div className="modal-actions"><button type="button" className="secondary-button" onClick={() => setShowForm(false)}>Cancelar</button><button className="primary-button" type="submit" disabled={busyId === "new"}>{busyId === "new" ? "Guardando…" : "Guardar propuesta"}</button></div></form></section>}<section className="panel table-panel report-results"><div className="search-toolbar"><input value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Buscar número, carátula o parte..."/><button className="secondary-button" onClick={() => setFilter("")}>Limpiar</button><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="all">Todos los estados</option><option>Pendiente</option><option>Incorporado</option><option>Descartado</option></select><span className="muted">{filtered.length} propuestas</span></div>{loading ? <div className="empty-table">Cargando propuestas…</div> : filtered.length ? <div className="table-wrap"><table><thead><tr><th>Fecha</th><th>Expediente</th><th>Carátula</th><th>Origen</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>{filtered.map((record) => { const number = record.candidateFields?.number || record.values[1] || "—"; const existing = cases.find((item) => item.fields.number?.trim().toLowerCase() === number.trim().toLowerCase()); const linkedId = record.caseId || record.createdCaseId; const state = record.values[4] || "Pendiente"; return <tr key={record.id}><td>{record.values[0] || "—"}</td><td>{linkedId ? <button className="text-button" onClick={() => openCase(linkedId)}>{number}</button> : number}</td><td>{record.candidateFields?.title || record.values[2] || "—"}</td><td>{record.values[3] || "Manual"}</td><td>{state}</td><td>{state === "Pendiente" ? <>{existing ? <button className="text-button" disabled={busyId === record.id} onClick={() => void incorporate(record)}>Asociar existente</button> : <button className="text-button" disabled={busyId === record.id} onClick={() => void incorporate(record)}>Crear expediente</button>}<button className="text-button danger-text" disabled={busyId === record.id} onClick={() => void discard(record)}>Descartar</button></> : linkedId ? <button className="text-button" onClick={() => openCase(linkedId)}>Abrir caso</button> : "—"}</td></tr>; })}</tbody></table></div> : <div className="empty-table">No hay propuestas en esta bandeja.</div>}</section></>;
+  return <><div className="page-title-row"><div><p className="eyebrow">CASOS / REVISIÓN</p><h1>Nuevos juicios</h1><p className="muted">Bandeja local para revisar propuestas antes de crear o asociar expedientes.</p></div><div className="title-actions"><button className="secondary-button" onClick={exportCsv}>Exportar CSV</button><button className="primary-button" onClick={() => setShowForm((value) => !value)}>＋ Nueva propuesta</button></div></div>{error && <div className="inline-error" role="alert">{error}</div>}<BulkCsvWizard templateHeaders={["ExpdteNro", "Carátula", "Demandante", "Demandado", "Tipo", "Monto", "Jurisdicción", "Juzgado", "Portfolio", "Responsable"]} templateName="plantilla-nuevos-juicios.csv" firstStep={{ typeLabel: "Tipo de documento", templateLabel: "Template", options: ["Escrito", "Mandamiento", "Oficio", "Cédula", "Otro"] }} onRows={async (rows) => {
+      let added = 0;
+      for (const row of rows) {
+        const number = row.fields.number || "";
+        if (!number) continue;
+        const values = [new Date().toLocaleDateString("es-AR"), number, row.raw["carátula"] || row.raw.caratula || row.fields.title || "", "Importación", "Pendiente"];
+        const fields = { ...row.fields, portfolio: row.raw.portfolio || "General", responsible: row.raw.responsable || "Sin asignar", jurisdiction: row.raw.jurisdicción || row.raw.jurisdiccion || "Capital" };
+        const response = await fetch(`/api/modules/${encodeURIComponent(moduleKey)}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ values, candidateFields: fields, details: "Propuesta importada por carga masiva" }) });
+        if (response.ok) { added++; const saved = await response.json(); setRecords((current) => [saved, ...current]); }
+      }
+      onSaved(`Documento cargado: ${added} propuestas agregadas a la bandeja`);
+    }} />{showForm && <section className="panel agenda-form-panel"><div className="panel-heading"><div><h3>Registrar propuesta</h3><p>La propuesta queda en revisión y no crea un expediente automáticamente.</p></div></div><form className="agenda-form" onSubmit={(event) => void saveProposal(event)}>{([ ["number", "Número de expediente", true], ["title", "Carátula", true], ["claimant", "Demandante", false], ["defendant", "Demandado", false], ["type", "Tipo de caso", false], ["court", "Juzgado", false], ["amount", "Monto", false], ["origin", "Origen", false] ] as const).map(([key, label, required]) => <label className="field" key={key}><span>{label}</span><input required={required} value={draft[key]} onChange={(event) => setDraft((current) => ({ ...current, [key]: event.target.value }))} /></label>)}<label className="field"><span>Jurisdicción</span><select value={draft.jurisdiction} onChange={(event) => setDraft((current) => ({ ...current, jurisdiction: event.target.value }))}>{jurisdictionOptions.map((value) => <option key={value}>{value}</option>)}</select></label><label className="field"><span>Portfolio</span><select value={draft.portfolio} onChange={(event) => setDraft((current) => ({ ...current, portfolio: event.target.value }))}>{portfolioOptions.map((value) => <option key={value}>{value}</option>)}</select></label><label className="field"><span>Responsable</span><select value={draft.responsible} onChange={(event) => setDraft((current) => ({ ...current, responsible: event.target.value }))}>{responsibleOptions.map((value) => <option key={value}>{value}</option>)}</select></label><label className="field agenda-detail"><span>Notas de revisión</span><textarea rows={3} value={draft.details} onChange={(event) => setDraft((current) => ({ ...current, details: event.target.value }))} /></label><div className="modal-actions"><button type="button" className="secondary-button" onClick={() => setShowForm(false)}>Cancelar</button><button className="primary-button" type="submit" disabled={busyId === "new"}>{busyId === "new" ? "Guardando…" : "Guardar propuesta"}</button></div></form></section>}<section className="panel table-panel report-results"><div className="search-toolbar"><input value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Buscar número, carátula o parte..."/><button className="secondary-button" onClick={() => setFilter("")}>Limpiar</button><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="all">Todos los estados</option><option>Pendiente</option><option>Incorporado</option><option>Descartado</option></select><span className="muted">{filtered.length} propuestas</span></div>{loading ? <div className="empty-table">Cargando propuestas…</div> : filtered.length ? <div className="table-wrap"><table><thead><tr><th>Fecha</th><th>Expediente</th><th>Carátula</th><th>Origen</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>{filtered.map((record) => { const number = record.candidateFields?.number || record.values[1] || "—"; const existing = cases.find((item) => item.fields.number?.trim().toLowerCase() === number.trim().toLowerCase()); const linkedId = record.caseId || record.createdCaseId; const state = record.values[4] || "Pendiente"; return <tr key={record.id}><td>{record.values[0] || "—"}</td><td>{linkedId ? <button className="text-button" onClick={() => openCase(linkedId)}>{number}</button> : number}</td><td>{record.candidateFields?.title || record.values[2] || "—"}</td><td>{record.values[3] || "Manual"}</td><td>{state}</td><td>{state === "Pendiente" ? <>{existing ? <button className="text-button" disabled={busyId === record.id} onClick={() => void incorporate(record)}>Asociar existente</button> : <button className="text-button" disabled={busyId === record.id} onClick={() => void incorporate(record)}>Crear expediente</button>}<button className="text-button danger-text" disabled={busyId === record.id} onClick={() => void discard(record)}>Descartar</button></> : linkedId ? <button className="text-button" onClick={() => openCase(linkedId)}>Abrir caso</button> : "—"}</td></tr>; })}</tbody></table></div> : <div className="empty-table">No hay propuestas en esta bandeja.</div>}</section></>;
 }
 
-function HomePage({ navigate }: { navigate: (href: string) => void }) {
-  const [summary, setSummary] = useState<{ totalCases: number; activeCases: number; stateCounts: Record<string, number>; movementCount: number; documentCount: number; expenseCount: number; agendaCount: number; overdueAgendaCount: number; upcomingAgenda: { date: string; time: string; title: string; caseId: string | null; caseNumber: string; status: string }[]; recent: { title: string; date: string; caseNumber?: string }[] } | null>(null);
+function HomePage({ navigate, cases, portfolioFilter }: { navigate: (href: string) => void; cases: CaseRecord[]; portfolioFilter: string }) {
+  const [summary, setSummary] = useState<{ totalCases: number; activeCases: number; stateCounts: Record<string, number>; movementCount: number; documentCount: number; expenseCount: number; agendaCount: number; overdueAgendaCount: number; upcomingAgenda: { date: string; time: string; title: string; caseId: string | null; caseNumber: string; status: string }[]; recent: { id: string; caseId: string | null; date: string; title: string; description: string; caseNumber: string; caseTitle: string }[]; portfolioBreakdown: { name: string; count: number; totalAmount: number; updatedAt: string }[] } | null>(null);
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   useEffect(() => { fetch("/api/summary", { cache: "no-store" }).then((response) => response.ok ? response.json() : null).then(setSummary).catch(() => setSummary(null)); }, []);
-  return <><div className="page-title-row"><div><p className="eyebrow">ESTUDIO JURÍDICO</p><h1>Inicio</h1><p className="muted">Resumen calculado desde SQLite local.</p></div><button className="primary-button" onClick={() => navigate("#/client/administration")}>＋ Alta de caso</button></div><div className="stats-grid"><div className="stat-card"><span>Casos activos</span><strong>{summary?.activeCases ?? "—"}</strong><small>{summary?.totalCases ?? 0} en la base local</small></div><div className="stat-card"><span>Movimientos</span><strong>{summary?.movementCount ?? "—"}</strong><small>Registrados en el sistema</small></div><div className="stat-card"><span>Documentos</span><strong>{summary?.documentCount ?? "—"}</strong><small>Adjuntos locales</small></div><div className="stat-card"><span>Gastos</span><strong>{summary?.expenseCount ?? "—"}</strong><small>Registros locales</small></div></div><div className="dashboard-grid"><section className="panel"><div className="panel-heading"><div><h3>Novedades recientes</h3><p>Actividad de los expedientes</p></div><button className="text-button" onClick={() => navigate("#/client/novedades_juicio")}>Ver novedades</button></div><Timeline items={summary?.recent || []} /></section><section className="panel"><div className="panel-heading"><div><h3>Estado procesal</h3><p>Distribución actual de casos</p></div><button className="text-button" onClick={() => navigate("#/client/dashboard/state")}>Ver tablero</button></div><StateBreakdown counts={summary?.stateCounts || {}} total={summary?.totalCases || 0} /></section></div><section className="panel upcoming-home"><div className="panel-heading"><div><h3>Próximas actividades</h3><p>{summary?.overdueAgendaCount || 0} atrasadas · próximas tareas vinculadas</p></div><button className="text-button" onClick={() => navigate("#/client/agenda")}>Ver agenda</button></div>{summary?.upcomingAgenda?.length ? <div className="upcoming-home-list">{summary.upcomingAgenda.map((item) => <button key={`${item.caseId || item.title}-${item.date}-${item.time}`} onClick={() => navigate(item.caseId ? `#/client/searchinf/detail/${item.caseId}` : "#/client/agenda")}><span>{item.date}{item.time && item.time !== "—" ? ` · ${item.time}` : ""}</span><strong>{item.title}</strong><small>{item.caseNumber}</small></button>)}</div> : <div className="empty-table compact-empty">No hay actividades próximas.</div>}</section><section className="panel quick-panel"><div className="panel-heading"><div><h3>Accesos rápidos</h3><p>Módulos de uso frecuente</p></div></div><div className="quick-links"><button onClick={() => navigate("#/client/searchinf")}>⌕<span>Búsqueda de casos</span></button><button onClick={() => navigate("#/client/inbox")}>✉<span>Inbox</span></button><button onClick={() => navigate("#/client/agenda")}>▦<span>Agenda</span></button><button onClick={() => navigate("#/admin/report")}>▥<span>Reportes</span></button></div></section></>;
+  const casePortfolioById = new Map(cases.map((item) => [item.id, item.fields.portfolio || ""]));
+  const filteredCases = portfolioFilter ? cases.filter((item) => item.fields.portfolio === portfolioFilter) : cases;
+  const breakdown = (summary?.portfolioBreakdown || []).filter((item) => !portfolioFilter || item.name === portfolioFilter);
+  const movements = (summary?.recent || []).filter((item) => !portfolioFilter || (item.caseId ? casePortfolioById.get(item.caseId) === portfolioFilter : true));
+  const upcomingAgenda = (summary?.upcomingAgenda || []).filter((item) => !portfolioFilter || (item.caseId ? casePortfolioById.get(item.caseId) === portfolioFilter : true));
+  const activeCases = filteredCases.filter((item) => !["finalizado", "cerrado"].includes(String(item.fields.state || "").trim().toLowerCase())).length;
+  const totalAmount = filteredCases.reduce((total, item) => total + parseAmount(item.fields.amount || ""), 0);
+  const homeKpis = [
+    { label: "Casos activos", value: activeCases },
+    { label: "Novedades", value: movements.length },
+    { label: "Próximas actividades", value: upcomingAgenda.length },
+    { label: portfolioFilter ? "Portfolio activo" : "Portfolios", value: portfolioFilter || breakdown.length },
+  ];
+  const pages = Math.max(1, Math.ceil(movements.length / rowsPerPage));
+  const currentPage = Math.min(page, pages - 1);
+  const pageRows = movements.slice(currentPage * rowsPerPage, currentPage * rowsPerPage + rowsPerPage);
+  const homeDate = (value = "") => {
+    const text = String(value);
+    if (/^\d{4}-\d{2}-\d{2}/.test(text)) return text.slice(0, 10).split("-").reverse().join("/");
+    return text;
+  };
+  return <>
+    <div className="page-title-row"><div><p className="eyebrow">ESTUDIO JURÍDICO</p><h1>Inicio</h1><p className="muted">Resumen del portfolio guardado en SQLite local{portfolioFilter ? ` · filtrado por ${portfolioFilter}` : ""}.</p></div><button className="primary-button" onClick={() => navigate("#/client/administration")}>＋ Alta de caso</button></div>
+    <div className="home-grid">
+      <section className="panel home-summary-card">
+        <div className="panel-heading"><div><h3>Casos en Gestión</h3><p>Totales del estudio</p></div></div>
+        <div className="home-summary-number"><strong>{filteredCases.length.toLocaleString("es-AR")}</strong><span>Monto total {formatAmount(totalAmount)}</span></div>
+        <div className="home-kpi-row">{homeKpis.map((item) => <div key={item.label} className="home-kpi-pill"><span>{item.label}</span><strong>{item.value}</strong></div>)}</div>
+        <div className="table-wrap"><table><thead><tr><th>Portal</th><th>Cant. de Casos</th><th>Monto total</th><th>Fecha actualización</th></tr></thead><tbody>{breakdown.map((item) => <tr key={item.name}><td>{item.name}</td><td>{item.count}</td><td>{formatAmount(item.totalAmount)}</td><td>{homeDate(item.updatedAt)}</td></tr>)}</tbody></table>{!breakdown.length && <div className="empty-table">Sin casos cargados todavía.</div>}</div>
+      </section>
+      <section className="panel home-news-card">
+        <div className="panel-heading"><div><h3>Novedades</h3><p>Últimos movimientos registrados</p></div><button className="text-button" onClick={() => navigate("#/client/novedades_juicio")}>Abrir novedades →</button></div>
+        <div className="table-wrap"><table><thead><tr><th>Fecha</th><th>Id</th><th>Nro. de juicio</th><th>Tipo de novedad</th><th>Detalle adicional</th><th>Carátula</th></tr></thead><tbody>{pageRows.map((item) => <tr key={item.id || `${item.caseId}-${item.date}`}><td>{homeDate(item.date)}</td><td>{item.caseId || "—"}</td><td>{item.caseNumber}</td><td>{item.title}</td><td>{item.description || "—"}</td><td>{item.caseTitle || "—"}</td></tr>)}</tbody></table>{!movements.length && <div className="empty-table">No hay novedades registradas.</div>}</div>
+        <div className="table-footer"><span>Página {pages ? currentPage + 1 : 0} de {pages}</span><div className="pager-buttons"><button className="icon-button" disabled={currentPage === 0} onClick={() => setPage(0)} aria-label="Primera página">⏮</button><button className="icon-button" disabled={currentPage === 0} onClick={() => setPage(currentPage - 1)} aria-label="Página anterior">◀</button><button className="icon-button" disabled={currentPage >= pages - 1} onClick={() => setPage(currentPage + 1)} aria-label="Página siguiente">▶</button><button className="icon-button" disabled={currentPage >= pages - 1} onClick={() => setPage(pages - 1)} aria-label="Última página">⏭</button></div><select value={rowsPerPage} onChange={(event) => { setRowsPerPage(Number(event.target.value)); setPage(0); }} aria-label="Filas por página"><option value={5}>5</option><option value={10}>10</option><option value={20}>20</option></select></div>
+      </section>
+    </div>
+    <section className="panel upcoming-home"><div className="panel-heading"><div><h3>Próximas actividades</h3><p>Agenda local priorizada por vencimiento.</p></div><button className="text-button" onClick={() => navigate("#/client/agenda")}>Abrir agenda →</button></div>{upcomingAgenda.length ? <div className="upcoming-home-list">{upcomingAgenda.map((item, index) => <button key={`${item.caseId || item.caseNumber}-${item.date}-${index}`} onClick={() => item.caseId ? navigate(`#/client/searchinf/detail/${item.caseId}`) : navigate("#/client/agenda")}><span>{homeDate(item.date)} {item.time && item.time !== "—" ? `· ${item.time}` : ""}</span><strong>{item.title}</strong><small>{item.caseNumber} · {item.status}</small></button>)}</div> : <div className="empty-table">No hay actividades próximas cargadas.</div>}</section>
+  </>;
+}
+
+function DashboardFilters({ showJurisdictions = true, showEstados = false, states = [], jurisdictions = [], onApply }: { showJurisdictions?: boolean; showEstados?: boolean; states?: string[]; jurisdictions?: string[]; onApply: (filters: { jurisdiction: string; state: string; minAmount: string } | null) => void }) {
+  const [jurisdiction, setJurisdiction] = useState("");
+  const [state, setState] = useState("");
+  const [minAmount, setMinAmount] = useState("");
+  const reset = () => { setJurisdiction(""); setState(""); setMinAmount(""); onApply(null); };
+  return <section className="panel dashboard-filters"><div className="filter-grid">
+    {showJurisdictions ? <label className="field"><span>Jurisdicciones</span><select value={jurisdiction} onChange={(event) => setJurisdiction(event.target.value)}><option value="">Selecciona una jurisdicción</option>{jurisdictions.map((option) => <option key={option} value={option}>{option}</option>)}</select></label> : null}
+    {showEstados ? <label className="field"><span>Estados</span><select value={state} onChange={(event) => setState(event.target.value)}><option value="">Selecciona un estado</option>{states.map((option) => <option key={option} value={option}>{option}</option>)}</select></label> : null}
+    <label className="field"><span>Abogado designado</span><select value="" disabled><option>Selecciona un abogado designado</option></select></label>
+    <label className="field"><span>Usuario designado</span><select value="" disabled><option>Selecciona un abogado interno</option></select></label>
+    <label className="field"><span>Estudio jurídico</span><select value="" disabled><option>Selecciona un estudio jurídico</option></select></label>
+    <label className="field"><span>Monto mayor a</span><input type="number" step="0.01" min="0" placeholder="0.00" value={minAmount} onChange={(event) => setMinAmount(event.target.value)} /></label>
+    <label className="field"><span>Información al</span><input type="date" /></label>
+  </div><div className="filter-actions"><button className="secondary-button" onClick={reset}>Limpiar filtros</button><button className="primary-button" onClick={() => onApply({ jurisdiction, state, minAmount })}>Buscar</button></div></section>;
 }
 
 function StateBreakdown({ counts, total }: { counts: Record<string, number>; total: number }) {
@@ -1758,29 +2090,45 @@ function StateBreakdown({ counts, total }: { counts: Record<string, number>; tot
 }
 
 function StateDashboardPage({ cases }: { cases: CaseRecord[] }) {
-  const counts = cases.reduce<Record<string, number>>((result, item) => {
+  const [filters, setFilters] = useState<{ jurisdiction: string; state: string; minAmount: string } | null>(null);
+  const states = [...new Set(cases.map((item) => item.fields.state?.trim() || "Sin estado"))].sort();
+  const jurisdictions = [...new Set(cases.map((item) => item.fields.jurisdiction?.trim()).filter(Boolean))] as string[];
+  const filteredCases = cases.filter((item) => {
+    if (filters?.jurisdiction && (item.fields.jurisdiction?.trim() || "Sin jurisdicción") !== filters.jurisdiction) return false;
+    if (filters?.state && (item.fields.state?.trim() || "Sin estado") !== filters.state) return false;
+    if (filters?.minAmount && parseAmount(item.fields.amount || "") < Number(filters.minAmount)) return false;
+    return true;
+  });
+  const counts = filteredCases.reduce<Record<string, number>>((result, item) => {
     const state = item.fields.state?.trim() || "Sin estado";
     result[state] = (result[state] || 0) + 1;
     return result;
   }, {});
   const rows = Object.entries(counts).sort((a, b) => b[1] - a[1]);
   function exportCsv() {
-    const content = [["Estado", "Cantidad", "Porcentaje"], ...rows.map(([state, count]) => [state, String(count), `${cases.length ? (count / cases.length * 100).toFixed(1) : "0.0"}%`])]
+    const content = [["Estado", "Cantidad", "Porcentaje"], ...rows.map(([state, count]) => [state, String(count), `${filteredCases.length ? (count / filteredCases.length * 100).toFixed(1) : "0.0"}%`])]
       .map((row) => row.map((value) => `"${value.replaceAll('"', '""')}"`).join(",")).join("\n");
     const url = URL.createObjectURL(new Blob([sanitizeCsv(content)], { type: "text/csv;charset=utf-8" }));
     const link = document.createElement("a"); link.href = url; link.download = "estado-procesal-local.csv"; link.click(); URL.revokeObjectURL(url);
   }
-  return <><div className="page-title-row"><div><p className="eyebrow">REPORTES / DASHBOARDS</p><h1>Estado procesal</h1><p className="muted">Distribución calculada sobre los casos guardados localmente.</p></div><button className="secondary-button" onClick={exportCsv}>Exportar CSV</button></div><section className="panel state-dashboard"><div className="panel-heading"><div><h3>{cases.length} casos</h3><p>Porcentaje calculado respecto del total</p></div></div><StateBreakdown counts={counts} total={cases.length} /><div className="table-wrap"><table><thead><tr><th>Estado</th><th>Cantidad</th><th>Porcentaje</th></tr></thead><tbody>{rows.map(([state, count]) => <tr key={state}><td>{state}</td><td>{count}</td><td>{cases.length ? `${(count / cases.length * 100).toFixed(1)}%` : "0%"}</td></tr>)}</tbody></table></div></section></>;
+  return <>
+    <div className="page-title-row"><div><p className="eyebrow">REPORTES / DASHBOARDS</p><h1>Estado Procesal</h1><p className="muted">Distribución calculada sobre los casos guardados localmente.</p></div><button className="secondary-button" onClick={exportCsv}>Exportar CSV</button></div>
+    <DashboardFilters showJurisdictions showEstados states={states} jurisdictions={jurisdictions} onApply={setFilters} />
+    <section className="panel state-dashboard"><div className="panel-heading"><div><h3>{filteredCases.length} casos</h3><p>Porcentaje calculado respecto del total filtrado</p></div></div><StateBreakdown counts={counts} total={filteredCases.length} /><div className="table-wrap"><table><thead><tr><th>Estado</th><th>Cantidad</th><th>Porcentaje</th></tr></thead><tbody>{rows.map(([state, count]) => <tr key={state}><td>{state}</td><td>{count}</td><td>{filteredCases.length ? `${(count / filteredCases.length * 100).toFixed(1)}%` : "0%"}</td></tr>)}</tbody></table></div></section>
+  </>;
 }
 
-type ActivityItem = { id: string; number: string; title: string; state: string; lastMovement: string; lastMovementDate: string; daysWithoutMovement: number | null; priority: string };
+type ActivityItem = { id: string; number: string; title: string; state: string; jurisdiction: string; amount: string; lastMovement: string; lastMovementDate: string; daysWithoutMovement: number | null; priority: string };
 
 function ActivityDashboardPage({ kind, openCase }: { kind: "movimientos" | "impulse"; openCase: (id: string) => void }) {
   const [items, setItems] = useState<ActivityItem[]>([]);
   const [filter, setFilter] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [filters, setFilters] = useState<{ jurisdiction: string; state: string; minAmount: string } | null>(null);
   const isNoMovement = kind === "movimientos";
+  const states = [...new Set(items.map((item) => item.state).filter(Boolean))].sort();
+  const jurisdictions = [...new Set(items.map((item) => item.jurisdiction).filter(Boolean))].sort();
   useEffect(() => {
     let cancelled = false;
     fetch("/api/dashboards/activity", { cache: "no-store" })
@@ -1794,9 +2142,10 @@ function ActivityDashboardPage({ kind, openCase }: { kind: "movimientos" | "impu
     return () => { cancelled = true; };
   }, []);
   const candidates = isNoMovement ? items.filter((item) => item.daysWithoutMovement === null || item.daysWithoutMovement >= 30) : items;
-  const filtered = candidates.filter((item) => `${item.number} ${item.title} ${item.state} ${item.lastMovement} ${item.priority}`.toLowerCase().includes(filter.toLowerCase()));
+  const stateFiltered = candidates.filter((item) => (!filters?.state || item.state === filters.state) && (!filters?.jurisdiction || item.jurisdiction === filters.jurisdiction) && (!filters?.minAmount || parseAmount(item.amount) >= Number(filters.minAmount)));
+  const filtered = stateFiltered.filter((item) => `${item.number} ${item.title} ${item.state} ${item.lastMovement} ${item.priority}`.toLowerCase().includes(filter.toLowerCase()));
   const sorted = filtered.slice().sort((a, b) => (b.daysWithoutMovement ?? Number.MAX_SAFE_INTEGER) - (a.daysWithoutMovement ?? Number.MAX_SAFE_INTEGER));
-  const title = isNoMovement ? "Casos sin movimientos recientes" : "Impulso procesal";
+  const title = isNoMovement ? "Sin Movimientos" : "Impulso Procesal";
 
   function exportCsv() {
     const header = ["Expediente", "Carátula", "Estado", "Último movimiento", "Fecha", "Días sin movimiento", "Prioridad"];
@@ -1806,7 +2155,11 @@ function ActivityDashboardPage({ kind, openCase }: { kind: "movimientos" | "impu
     const link = document.createElement("a"); link.href = url; link.download = `${slug(title)}-local.csv`; link.click(); URL.revokeObjectURL(url);
   }
 
-  return <><div className="page-title-row"><div><p className="eyebrow">REPORTES / DASHBOARDS</p><h1>{title}</h1><p className="muted">{isNoMovement ? "Se muestran los casos sin movimientos o con 30 días o más de inactividad." : "Prioridad calculada a partir del tiempo transcurrido desde el último movimiento."}</p></div><button className="secondary-button" onClick={exportCsv}>Exportar CSV</button></div><section className="panel table-panel"><div className="search-toolbar"><input value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Buscar expediente, carátula o estado..."/><button className="secondary-button" onClick={() => setFilter("")}>Limpiar</button><span className="muted">{sorted.length} casos</span></div>{error && <div className="inline-error" role="alert">{error}</div>}{loading ? <div className="empty-table">Calculando desde movimientos locales…</div> : sorted.length ? <div className="table-wrap"><table><thead><tr><th>Expediente</th><th>Carátula</th><th>Último movimiento</th><th>Fecha</th><th>Días</th><th>Prioridad</th><th>Estado judicial</th><th></th></tr></thead><tbody>{sorted.map((item) => <tr key={item.id}><td>{item.number}</td><td>{item.title}</td><td>{item.lastMovement}</td><td>{item.lastMovementDate}</td><td>{item.daysWithoutMovement ?? "—"}</td><td><span className={`tag ${item.priority === "Alta" || item.priority === "Sin movimientos" ? "red" : item.priority === "Media" ? "yellow" : "green"}`}>{item.priority}</span></td><td>{item.state}</td><td><button className="text-button" onClick={() => openCase(item.id)}>Abrir →</button></td></tr>)}</tbody></table></div> : <div className="empty-table">No hay casos que coincidan con este tablero.</div>}</section></>;
+  return <>
+    <div className="page-title-row"><div><p className="eyebrow">REPORTES / DASHBOARDS</p><h1>{title}</h1><p className="muted">{isNoMovement ? "Se muestran los casos sin movimientos o con 30 días o más de inactividad." : "Prioridad calculada a partir del tiempo transcurrido desde el último movimiento."}</p></div><button className="secondary-button" onClick={exportCsv}>Exportar CSV</button></div>
+    <DashboardFilters showJurisdictions states={states} jurisdictions={jurisdictions} onApply={setFilters} />
+    <section className="panel table-panel"><div className="search-toolbar"><input value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Buscar expediente, carátula o estado..."/><button className="secondary-button" onClick={() => setFilter("")}>Limpiar</button><span className="muted">{sorted.length} casos</span></div>{error && <div className="inline-error" role="alert">{error}</div>}{loading ? <div className="empty-table">Calculando desde movimientos locales…</div> : sorted.length ? <div className="table-wrap"><table><thead><tr><th>Expediente</th><th>Carátula</th><th>Último movimiento</th><th>Fecha</th><th>Días</th><th>Prioridad</th><th>Estado judicial</th><th></th></tr></thead><tbody>{sorted.map((item) => <tr key={item.id}><td>{item.number}</td><td>{item.title}</td><td>{item.lastMovement}</td><td>{item.lastMovementDate}</td><td>{item.daysWithoutMovement ?? "—"}</td><td><span className={`tag ${item.priority === "Alta" || item.priority === "Sin movimientos" ? "red" : item.priority === "Media" ? "yellow" : "green"}`}>{item.priority}</span></td><td>{item.state}</td><td><button className="text-button" onClick={() => openCase(item.id)}>Abrir →</button></td></tr>)}</tbody></table></div> : <div className="empty-table">No hay casos que coincidan con este tablero.</div>}</section>
+  </>;
 }
 
 type StockData = { month: string; label: string; altas: number; solicitudes: number; pendientes: number };
@@ -1828,7 +2181,7 @@ function StockDashboardPage({ navigate }: { navigate: (href: string) => void }) 
     const url = URL.createObjectURL(new Blob([sanitizeCsv(csv)], { type: "text/csv;charset=utf-8" }));
     const link = document.createElement("a"); link.href = url; link.download = "stock-casos-local.csv"; link.click(); URL.revokeObjectURL(url);
   }
-  return <><div className="page-title-row"><div><p className="eyebrow">REPORTES / DASHBOARDS</p><h1>Stock de casos</h1><p className="muted">Altas y solicitudes registradas en los últimos seis meses.</p></div><div className="title-actions"><button className="secondary-button" onClick={exportCsv}>Exportar CSV</button><button className="primary-button" onClick={() => navigate("#/client/bajajuicio")}>Solicitudes de baja</button></div></div>{error && <div className="inline-error" role="alert">{error}</div>}<div className="stats-grid"><div className="stat-card"><span>Casos en la base local</span><strong>{data?.totalCases ?? "—"}</strong><small>Registros conservados</small></div><div className="stat-card"><span>Solicitudes de baja</span><strong>{data?.totalRequests ?? "—"}</strong><small>No equivalen a casos eliminados</small></div><div className="stat-card"><span>Solicitudes pendientes</span><strong>{data?.pendingRequests ?? "—"}</strong><small>Requieren revisión</small></div></div><section className="panel stock-dashboard"><div className="panel-heading"><div><h3>Actividad mensual</h3><p>Altas nuevas y solicitudes de baja; no se ejecutan bajas automáticamente.</p></div></div>{data ? <><div className="stock-bars">{data.months.map((month) => <div className="stock-bar-group" key={month.month}><div className="stock-bar-pair"><i className="stock-bar alta" style={{ height: `${Math.max(3, month.altas / max * 100)}%` }} title={`Altas: ${month.altas}`} /><i className="stock-bar solicitud" style={{ height: `${Math.max(3, month.solicitudes / max * 100)}%` }} title={`Solicitudes: ${month.solicitudes}`} /></div><span>{month.label}</span><strong>+{month.altas} / {month.solicitudes}</strong></div>)}</div><div className="stock-legend"><span><i className="alta" /> Altas</span><span><i className="solicitud" /> Solicitudes de baja</span></div><div className="table-wrap"><table><thead><tr><th>Mes</th><th>Altas</th><th>Solicitudes</th><th>Pendientes</th></tr></thead><tbody>{data.months.map((month) => <tr key={month.month}><td>{month.label}</td><td>{month.altas}</td><td>{month.solicitudes}</td><td>{month.pendientes}</td></tr>)}</tbody></table></div></> : <div className="empty-table">Cargando tablero…</div>}</section></>;
+  return <><div className="page-title-row"><div><p className="eyebrow">REPORTES / DASHBOARDS</p><h1>Stock (altas y bajas)</h1><p className="muted">Altas y solicitudes registradas en los últimos seis meses.</p></div><div className="title-actions"><button className="secondary-button" onClick={exportCsv}>Exportar CSV</button><button className="primary-button" onClick={() => navigate("#/client/bajajuicio")}>Solicitudes de baja</button></div></div><DashboardFilters onApply={() => {}} />{error && <div className="inline-error" role="alert">{error}</div>}<div className="stats-grid"><div className="stat-card"><span>Casos en la base local</span><strong>{data?.totalCases ?? "—"}</strong><small>Registros conservados</small></div><div className="stat-card"><span>Solicitudes de baja</span><strong>{data?.totalRequests ?? "—"}</strong><small>No equivalen a casos eliminados</small></div><div className="stat-card"><span>Solicitudes pendientes</span><strong>{data?.pendingRequests ?? "—"}</strong><small>Requieren revisión</small></div></div><section className="panel stock-dashboard"><div className="panel-heading"><div><h3>Actividad mensual</h3><p>Altas nuevas y solicitudes de baja; no se ejecutan bajas automáticamente.</p></div></div>{data ? <><div className="stock-bars">{data.months.map((month) => <div className="stock-bar-group" key={month.month}><div className="stock-bar-pair"><i className="stock-bar alta" style={{ height: `${Math.max(3, month.altas / max * 100)}%` }} title={`Altas: ${month.altas}`} /><i className="stock-bar solicitud" style={{ height: `${Math.max(3, month.solicitudes / max * 100)}%` }} title={`Solicitudes: ${month.solicitudes}`} /></div><span>{month.label}</span><strong>+{month.altas} / {month.solicitudes}</strong></div>)}</div><div className="stock-legend"><span><i className="alta" /> Altas</span><span><i className="solicitud" /> Solicitudes de baja</span></div><div className="table-wrap"><table><thead><tr><th>Mes</th><th>Altas</th><th>Solicitudes</th><th>Pendientes</th></tr></thead><tbody>{data.months.map((month) => <tr key={month.month}><td>{month.label}</td><td>{month.altas}</td><td>{month.solicitudes}</td><td>{month.pendientes}</td></tr>)}</tbody></table></div></> : <div className="empty-table">Cargando tablero…</div>}</section></>;
 }
 
 type DeactivationRequest = { id: string; values: string[]; caseId?: string; createdAt?: string };
@@ -1908,12 +2261,28 @@ function CaseDeactivationPage({ cases, openCase, onSaved }: { cases: CaseRecord[
     const link = document.createElement("a"); link.href = url; link.download = "solicitudes-baja-local.csv"; link.click(); URL.revokeObjectURL(url);
   }
 
-  return <><div className="page-title-row"><div><p className="eyebrow">CASOS / ADMINISTRACIÓN</p><h1>Solicitudes de baja</h1><p className="muted">Registra y revisa solicitudes. Ninguna solicitud elimina el expediente automáticamente.</p></div><button className="secondary-button" onClick={exportCsv}>Exportar CSV</button></div><section className="panel fields-panel"><form onSubmit={(event) => void submit(event)}><div className="fields-grid"><label className="field"><span>Expediente</span><select required value={caseId} onChange={(event) => setCaseId(event.target.value)}><option value="">Seleccionar expediente</option>{cases.map((item) => <option key={item.id} value={item.id}>{item.fields.number || item.id} · {item.fields.title || item.fields.claimant || "Caso local"}</option>)}</select></label><label className="field"><span>Motivo de la solicitud</span><textarea required rows={3} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Describe el motivo de la solicitud" /></label></div><div className="modal-actions"><button className="primary-button" type="submit" disabled={busy || !cases.length}>{busy ? "Guardando…" : "Registrar solicitud"}</button></div></form></section><section className="panel table-panel report-results"><div className="panel-heading"><div><h3>Historial de solicitudes</h3><p>{requests.length} solicitudes guardadas localmente.</p></div></div>{error && <div className="inline-error" role="alert">{error}</div>}<div className="search-toolbar"><input value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Buscar por expediente, motivo o estado..." /><button className="secondary-button" onClick={() => setFilter("")}>Limpiar</button><span className="muted">{filtered.length} resultados</span></div>{loading ? <div className="empty-table">Cargando…</div> : filtered.length ? <div className="table-wrap"><table><thead><tr><th>Expediente</th><th>Motivo</th><th>Solicitado</th><th>Estado de solicitud</th><th>Acción</th></tr></thead><tbody>{filtered.map((item) => <tr key={item.id}><td>{item.caseId ? <button className="text-button" onClick={() => openCase(item.caseId!)}>{item.values[0] || "—"}</button> : item.values[0] || "—"}</td><td>{item.values[1] || "—"}</td><td>{item.values[2] || "—"}</td><td><select aria-label="Estado de solicitud" value={item.values[3] || "Pendiente"} onChange={(event) => void updateStatus(item, event.target.value)}><option>Pendiente</option><option>Revisada</option><option>Cancelada</option></select></td><td>{item.caseId ? <button className="text-button" onClick={() => openCase(item.caseId!)}>Abrir caso</button> : "—"}</td></tr>)}</tbody></table></div> : <div className="empty-table">Todavía no hay solicitudes de baja.</div>}</section></>;
+  return <>
+    <div className="page-title-row"><div><p className="eyebrow">CASOS / ADMINISTRACIÓN</p><h1>Baja de juicios masivo</h1><p className="muted">Registra solicitudes de baja en lote o individual. Ninguna solicitud elimina el expediente automáticamente.</p></div><button className="secondary-button" onClick={exportCsv}>Exportar CSV</button></div>
+    <BulkCsvWizard templateHeaders={["Expediente", "Motivo"]} templateName="plantilla-baja-juicios.csv" onRows={async (rows) => {
+      let added = 0;
+      for (const row of rows) {
+        const number = row.fields.number || row.raw.expediente || "";
+        if (!number) continue;
+        const match = cases.find((item) => (item.fields.number || "").trim().toLowerCase() === number.trim().toLowerCase());
+        const reason = row.raw.motivo || row.raw["motivodelasolicitud"] || "Carga masiva";
+        const values = [match?.fields.number || number, reason, new Date().toLocaleDateString("es-AR"), "Pendiente"];
+        const response = await fetch(`/api/modules/${encodeURIComponent(moduleKey)}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ values, caseId: match?.id }) });
+        if (response.ok) { added++; const saved = await response.json(); setRequests((current) => [...current, saved]); }
+      }
+      onSaved(`Documento cargado: ${added} solicitudes registradas; los expedientes siguen intactos`);
+    }} />
+    <section className="panel fields-panel"><form onSubmit={(event) => void submit(event)}><div className="fields-grid"><label className="field"><span>Expediente</span><select required value={caseId} onChange={(event) => setCaseId(event.target.value)}><option value="">Seleccionar expediente</option>{cases.map((item) => <option key={item.id} value={item.id}>{item.fields.number || item.id} · {item.fields.title || item.fields.claimant || "Caso local"}</option>)}</select></label><label className="field"><span>Motivo de la solicitud</span><textarea required rows={3} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Describe el motivo de la solicitud" /></label></div><div className="modal-actions"><button className="primary-button" type="submit" disabled={busy || !cases.length}>{busy ? "Guardando…" : "Registrar solicitud"}</button></div></form></section><section className="panel table-panel report-results"><div className="panel-heading"><div><h3>Historial de solicitudes</h3><p>{requests.length} solicitudes guardadas localmente.</p></div></div>{error && <div className="inline-error" role="alert">{error}</div>}<div className="search-toolbar"><input value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Buscar por expediente, motivo o estado..." /><button className="secondary-button" onClick={() => setFilter("")}>Limpiar</button><span className="muted">{filtered.length} resultados</span></div>{loading ? <div className="empty-table">Cargando…</div> : filtered.length ? <div className="table-wrap"><table><thead><tr><th>Expediente</th><th>Motivo</th><th>Solicitado</th><th>Estado de solicitud</th><th>Acción</th></tr></thead><tbody>{filtered.map((item) => <tr key={item.id}><td>{item.caseId ? <button className="text-button" onClick={() => openCase(item.caseId!)}>{item.values[0] || "—"}</button> : item.values[0] || "—"}</td><td>{item.values[1] || "—"}</td><td>{item.values[2] || "—"}</td><td><select aria-label="Estado de solicitud" value={item.values[3] || "Pendiente"} onChange={(event) => void updateStatus(item, event.target.value)}><option>Pendiente</option><option>Revisada</option><option>Cancelada</option></select></td><td>{item.caseId ? <button className="text-button" onClick={() => openCase(item.caseId!)}>Abrir caso</button> : "—"}</td></tr>)}</tbody></table></div> : <div className="empty-table">Todavía no hay solicitudes de baja.</div>}</section></>;
 }
 
 function ModulePage({ route, title, onSaved }: { route: string; title: string; onSaved: (s: string) => void }) {
   const definition = moduleDefinitions[route] ?? { description: "Gestión de información del estudio.", columns: ["Nombre", "Descripción", "Estado"], rows: [], action: "Nuevo registro" };
-  const moduleKey = route.replace(/^#\//, "");
+  const heading = definition.heading || title;
+  const moduleKey = `${route.replace(/^#\//, "")}${definition.seedVersion ? `@v${definition.seedVersion}` : ""}`;
   const [records, setRecords] = useState<{ id: string; values: string[] }[]>([]);
   const [filter, setFilter] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
@@ -2013,7 +2382,7 @@ function ModulePage({ route, title, onSaved }: { route: string; title: string; o
     URL.revokeObjectURL(url);
   }
 
-  return <><div className="page-title-row"><div><p className="eyebrow">LEGALRUN / ESTUDIO</p><h1>{title}</h1><p className="muted">{definition.description} · guardado en SQLite local</p></div><div className="title-actions"><button className="secondary-button" onClick={exportCsv}>Exportar CSV</button>{definition.action && <button className="primary-button" onClick={() => { setEditingId(null); setDraftValues(definition.columns.map(() => "")); setModalOpen(true); }}>＋ {definition.action}</button>}</div></div><section className="panel table-panel"><div className="search-toolbar"><input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder={`Buscar en ${title.toLowerCase()}...`}/><button className="secondary-button" onClick={() => setFilter("")}>Limpiar</button><span className="muted">{filtered.length} registros</span></div>{error && <div className="inline-error" role="alert">{error}</div>}{loading ? <div className="empty-table">Cargando desde SQLite…</div> : filtered.length ? <div className="table-wrap"><table><thead><tr>{definition.columns.map((column) => <th key={column}>{column}</th>)}<th>Acciones</th></tr></thead><tbody>{filtered.map((record) => <tr key={record.id}>{definition.columns.map((_, j) => <td key={`${j}-${record.values[j]}`}>{record.values[j] || "—"}</td>)}<td><button className="text-button" onClick={() => editRow(record)}>Editar</button><button className="text-button danger-text" onClick={() => void deleteRow(record.id)}>Eliminar</button></td></tr>)}</tbody></table></div> : <div className="empty-table">No hay registros todavía.</div>}</section>{modalOpen && <div className="modal-backdrop" onClick={() => setModalOpen(false)}><section className="modal-card module-modal" onClick={(e) => e.stopPropagation()}><div className="panel-heading"><div><h3>{editingId ? "Editar registro" : definition.action}</h3><p>El registro se guardará en la base local.</p></div><button className="icon-button" onClick={() => { setModalOpen(false); setEditingId(null); }} aria-label="Cerrar">×</button></div><form onSubmit={addRow}><div className="module-form-grid">{definition.columns.map((column, index) => <label className="field" key={`${column}-${index}`}><span>{column}</span><input type={/fecha|date/i.test(column) ? "date" : /hora/i.test(column) ? "time" : /email|correo/i.test(column) ? "email" : "text"} value={draftValues[index] || ""} onChange={(event) => setDraftValues((current) => definition.columns.map((_, itemIndex) => itemIndex === index ? event.target.value : current[itemIndex] || ""))} required={index === 0} autoFocus={index === 0} /></label>)}</div><div className="modal-actions"><button type="button" className="secondary-button" onClick={() => { setModalOpen(false); setEditingId(null); }}>Cancelar</button><button className="primary-button" type="submit">Guardar</button></div></form></section></div>}</>;
+  return <><div className="page-title-row"><div><p className="eyebrow">LEGALRUN / ESTUDIO</p><h1>{heading}</h1><p className="muted">{definition.description} · guardado en SQLite local</p></div><div className="title-actions"><button className="secondary-button" onClick={exportCsv}>Exportar CSV</button>{definition.action && <button className="primary-button" onClick={() => { setEditingId(null); setDraftValues(definition.columns.map(() => "")); setModalOpen(true); }}>＋ {definition.action}</button>}</div></div><section className="panel table-panel"><div className="search-toolbar"><input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder={`Buscar en ${heading.toLowerCase()}...`}/><button className="secondary-button" onClick={() => setFilter("")}>Limpiar</button><span className="muted">{filtered.length} registros</span></div>{error && <div className="inline-error" role="alert">{error}</div>}{loading ? <div className="empty-table">Cargando desde SQLite…</div> : filtered.length ? <div className="table-wrap"><table><thead><tr>{definition.columns.map((column) => <th key={column}>{column}</th>)}<th>Acciones</th></tr></thead><tbody>{filtered.map((record) => <tr key={record.id}>{definition.columns.map((_, j) => <td key={`${j}-${record.values[j]}`}>{record.values[j] || "—"}</td>)}<td><button className="text-button" onClick={() => editRow(record)}>Editar</button><button className="text-button danger-text" onClick={() => void deleteRow(record.id)}>Eliminar</button></td></tr>)}</tbody></table></div> : <div className="empty-table">No hay registros todavía.</div>}</section>{modalOpen && <div className="modal-backdrop" onClick={() => setModalOpen(false)}><section className="modal-card module-modal" onClick={(e) => e.stopPropagation()}><div className="panel-heading"><div><h3>{editingId ? "Editar registro" : definition.action}</h3><p>El registro se guardará en la base local.</p></div><button className="icon-button" onClick={() => { setModalOpen(false); setEditingId(null); }} aria-label="Cerrar">×</button></div><form onSubmit={addRow}><div className="module-form-grid">{definition.columns.map((column, index) => <label className="field" key={`${column}-${index}`}><span>{column}</span><input type={/fecha|date/i.test(column) ? "date" : /hora/i.test(column) ? "time" : /email|correo/i.test(column) ? "email" : "text"} value={draftValues[index] || ""} onChange={(event) => setDraftValues((current) => definition.columns.map((_, itemIndex) => itemIndex === index ? event.target.value : current[itemIndex] || ""))} required={index === 0} autoFocus={index === 0} /></label>)}</div><div className="modal-actions"><button type="button" className="secondary-button" onClick={() => { setModalOpen(false); setEditingId(null); }}>Cancelar</button><button className="primary-button" type="submit">Guardar</button></div></form></section></div>}</>;
 }
 function slug(value: string) { return value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""); }
 

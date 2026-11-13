@@ -59,7 +59,10 @@ ejemplo es `#/client/searchinf/detail/demo-10482`.
 - Los reportes guardados conservan sus filtros y una copia exportable del
   resultado al momento de guardarlos.
 - El constructor de reportes filtra por estado, tipo, portfolio, jurisdicción y
-  fecha de alta; incluye campos comodines en CSV y en snapshots guardados.
+  fecha de alta; incluye selector de columnas con el catálogo amplio (direcciones
+  de las partes, año, subestados, juzgado, abogado/usuario designado, últimos
+  proveídos y Comodín 1 a 6), selección total, campos comodines en CSV y en
+  snapshots guardados.
 - Catálogos y módulos permiten altas, edición, bajas, búsqueda y exportación CSV.
 - Agenda separa actividades atrasadas, del día y próximos vencimientos, con
   vínculo opcional a expedientes y actualización de estado.
@@ -67,13 +70,32 @@ ejemplo es `#/client/searchinf/detail/demo-10482`.
 - Inbox permite asociar mensajes a expedientes, actualizar su estado y filtrar
   por nuevos, leídos, respondidos o archivados.
 - Novedades consolida movimientos de todos los casos; permite registrar y
-  revisar movimientos, abrir la ficha asociada y exportar CSV.
-- Estado de documentos agrega adjuntos y presentaciones, permite filtrar,
-  descargar archivos y cambiar el estado desde una vista central.
+  revisar movimientos, abrir la ficha asociada y exportar CSV. Reproduce las
+  pestañas Notificaciones, Proveídos, Causas sin Movimiento, Documentos
+  Presentados y Documentos no presentados, con sus estados y columnas principales.
+- Las cargas masivas de Actualización masiva, Baja de juicios masivo y Nuevos
+  juicios usan wizards con descarga de plantilla, drag & drop, validación y carga
+  de CSV UTF-8; Nuevos juicios además conserva el paso de tipo de documento y
+  template. Los lotes de actualización indican el límite de 4000 registros.
+- El topbar local incluye Ayuda, Asistente IA, selector de portfolio, cliente,
+  usuario, rol, notificaciones y perfil, con datos ficticios.
+- Estado de documentos agrega adjuntos y presentaciones, permite filtrar por
+  portal, fecha, proceso, estado, momento y carátula, descargar archivos y
+  cambiar el estado desde una vista central.
+- El arranque del backend completa automáticamente el caso demo local con
+  documentos y presentaciones ficticias si faltan, para que los filtros de
+  portal, proceso, momento y carátula tengan opciones útiles sin tocar datos
+  reales.
+- El backend también siembra, si faltan, expedientes demo adicionales,
+  movimientos con distintas antigüedades, solicitudes de baja, agenda, inbox y
+  reportes guardados, para que los dashboards locales (estado procesal, sin
+  movimientos, impulso procesal, stock, finanzas) muestren distribuciones más
+  realistas desde el primer arranque.
 - El tablero financiero consolida gastos y honorarios, vencimientos y estados de
   pago, con filtros, actualización de estado y exportación CSV.
 - Historial de mantenimiento registra acciones de casos, movimientos y módulos,
-  sin copiar el texto sensible de notas o mensajes.
+  sin copiar el texto sensible de notas o mensajes; incluye paginador con
+  navegación por páginas y selector de filas por página.
 - Impresión y exportación de fichas funcionan localmente. IA, Drive, correo y
   fórmulas de cálculo legal requieren configurar integraciones y no están activas.
 - Las exportaciones CSV neutralizan valores que podrían interpretarse como
