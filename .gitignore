@@ -7,3 +7,5 @@ data/
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
+.playwright-mcp/
+.planning/

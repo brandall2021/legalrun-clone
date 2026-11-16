@@ -44,3 +44,52 @@
 
 /* Wizard de carga masiva + selector de columnas + topbar */
 .wizard-panel{display:grid;gap:16px}.wizard-step{display:flex;align-items:flex-start;gap:14px;padding:14px 0;border-bottom:1px solid var(--border)}.wizard-step:last-of-type{border-bottom:0}.step-num{flex:0 0 26px;height:26px;display:grid;place-items:center;background:#233a5e;color:#fff;border-radius:50%;font-size:12px;font-weight:700}.wizard-step h3{margin:0 0 4px;font-size:13px;color:#233a5e}.wizard-step p{margin:0 0 8px;color:var(--muted);font-size:11px}.wizard-step .secondary-button{margin-left:auto;white-space:nowrap}.wizard-step .filter-grid{margin-top:8px;max-width:520px}.wizard-selects{grid-template-columns:1fr 1fr!important}.wizard-dropzone{display:grid;place-items:center;min-height:74px;padding:12px 18px;border:2px dashed #c3cede;border-radius:9px;background:#f8fafd;color:#5c6b80;font-size:12px;cursor:pointer;text-align:center}.wizard-dropzone:hover{border-color:#00bf78;color:#233a5e}.column-picker{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center}.check-item{display:flex;align-items:center;gap:6px;font-size:11px;color:#5c6b80}.check-item input{accent-color:#233a5e}.top-brand{display:flex}.brand-mark.small{height:30px;width:30px;font-size:11px;border-radius:8px}.help-button{color:#dbe4f1}.top-sep{width:1px;height:22px;background:#ffffff22}.portfolio-picker{display:flex;align-items:center;gap:8px;color:#c5cfdd;font-size:10px}.portfolio-picker select{max-width:210px;padding:5px 8px;border-radius:7px;border:1px solid #ffffff22;background:#ffffff0d;color:#eef3fa;font-size:11px}.portfolio-picker select option{color:#202938;background:#fff}.top-spacer{flex:1}.session-meta{display:flex;align-items:center;gap:6px;color:#97a6bc;font-size:10px;flex-wrap:wrap}.session-meta strong{color:#eef3fa;font-weight:600;margin-right:8px}@media(max-width:1000px){.session-meta{display:none}}
+
+/* ── Mejora visual 2026-11-16 (auditoría con Playwright) ───────────── */
+
+/* F3: selects nativos estilizados en toda la app */
+select{
+  appearance:none;-webkit-appearance:none;
+  padding:7px 30px 7px 10px;border:1px solid var(--border);border-radius:7px;
+  background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%235c6b80' stroke-width='1.6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 10px center;
+  color:#3c4657;font-size:11.5px;max-width:100%;cursor:pointer;
+}
+select:disabled{background-color:#f3f6fb;color:#9aa6b5;cursor:default}
+select:focus{outline:2px solid #233a5e22;border-color:#233a5e}
+.search-toolbar select,.filter-grid select,.field select,.table-footer select,.module-modal select,.agenda-form select{
+  padding-top:7px;padding-bottom:7px;padding-right:30px;
+}
+.search-toolbar{flex-wrap:wrap}
+.search-toolbar select{flex:0 1 auto;min-width:0}
+.filter-grid select,.filter-grid input{height:36px}
+.table-footer select{padding:3px 24px 3px 8px;background-position:right 7px center}
+
+/* chevron claro para el select de portfolio del topbar (fondo oscuro) */
+.portfolio-picker select{
+  width:195px;
+  background:#ffffff0d url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23a9b6c8' stroke-width='1.6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 9px center;
+}
+
+/* F2: topbar sin texto partido */
+.topbar .text-button,.topbar .ai-button,.profile-button{white-space:nowrap}
+.help-button{display:inline-flex;align-items:center;gap:5px}
+.ai-button{flex:0 0 auto}
+.profile-button{min-width:0;max-width:230px;overflow:hidden}
+.profile-button strong,.profile-button>span{overflow:hidden;text-overflow:ellipsis}
+.topbar{flex-wrap:nowrap}
+.topbar>*{flex-shrink:0}
+.top-spacer{flex:1 1 0;min-width:8px}
+@media(max-width:1100px){.profile-button{max-width:120px}.portfolio-picker select{max-width:185px}}
+/* Viewport angosto: el contenido del topbar excede el ancho disponible
+   (577px de hijos + 8 gaps de 15px > caja de contenido) → recorto los
+   elementos elásticos para eliminar el h-scroll de página en la ficha. */
+@media(max-width:1000px){
+  .topbar{gap:10px;padding:0 14px}
+  .portfolio-picker select{width:178px}
+  .profile-button{max-width:100px}
+  .top-spacer{min-width:0}
+}
+
+/* F6: tira de tabs sin scrollbar visible (scrollea con rueda/drag/touch) */
+.tabs-row{scrollbar-width:none}
+.tabs-row::-webkit-scrollbar{display:none}

@@ -353,6 +353,25 @@ function ensureDemoModules() {
     if (!exists) insertRecord.run(randomUUID(), "client/agenda", JSON.stringify(record), now());
   }
 
+  // Actividades futuras (fechas relativas a hoy): alimentan el KPI "Próximas
+  // actividades" del Home y el filtro "Próximos 7 días" de Agenda. La clave de
+  // idempotencia es el nombre de la actividad (values[2]), no la fecha, para no
+  // duplicar registros cuando el server corre más de un día.
+  const futureDate = (days) => localDate(addDays(new Date(), days));
+  const futureAgendaRows = [
+    { values: [futureDate(1), "10:00", "Audiencia preliminar programada", "932/2024", "Abogado demo", "Pendiente"], caseId: "demo-93224", details: "Controlar notificaciones y prueba ofrecida antes de la audiencia." },
+    { values: [futureDate(4), "15:30", "Vencimiento para contestar demanda", "1842/2025", "Analista demo", "Pendiente"], caseId: "demo-10482", details: "Preparar el escrito de contestación con la liquidación actualizada." },
+  ];
+  seedModule.run("client/agenda", now());
+  const futureAgenda = db.prepare("SELECT id, data FROM module_records WHERE module = 'client/agenda'").all();
+  for (const record of futureAgendaRows) {
+    const exists = futureAgenda.find((row) => {
+      const data = readJson(row.data);
+      return (data.values || [])[2] === record.values[2];
+    });
+    if (!exists) insertRecord.run(randomUUID(), "client/agenda", JSON.stringify(record), now());
+  }
+
   const inboxRows = [
     { values: ["14/11/2026", "Documentación recibida", "Cliente Delta", "932/2024", "Nuevo"], caseId: "demo-93224", message: "Adjunto recibos y constancias para la audiencia de la próxima semana." },
     { values: ["13/11/2026", "Consulta sobre sentencia", "Aseguradora del Centro", "771/2023", "Leído"], caseId: "demo-77123", message: "Solicitan estimación de plazos para el dictado de sentencia." },
