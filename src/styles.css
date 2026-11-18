@@ -115,3 +115,14 @@ select:focus{outline:2px solid #233a5e22;border-color:#233a5e}
 .faq-chat-form textarea:focus{outline:2px solid #233a5e22;border-color:#233a5e}
 .faq-chat-actions{display:flex;justify-content:flex-end}
 @media(max-width:760px){.faq-public-shell{padding:18px 12px}.faq-public-card{padding:16px;border-radius:16px}.faq-public-topbar{flex-direction:column;align-items:flex-start}.faq-chat-header h1{font-size:24px}.faq-chat-bubble{max-width:100%}}
+
+.template-generator{margin-top:16px}
+.template-generator .field{max-width:520px}
+.template-actions{display:flex;gap:9px;justify-content:flex-end;margin:8px 0}
+.template-preview{margin:10px 0 0;padding:18px;border:1px solid var(--border);border-radius:10px;background:#fbfcfe;color:#243044;font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;word-break:break-word;max-height:420px;overflow:auto}
+.template-warning{margin:10px 0 0;padding:10px 12px;border:1px solid #f0d9a8;border-radius:8px;background:#fff8e8;color:#8a6116;font-size:12px}
+.template-palette{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.template-chip{border:1px solid var(--border);border-radius:999px;background:#f7f9fc;color:#40506a;padding:4px 9px;font-size:11px}
+.template-chip:hover{border-color:#9fb4d9;background:#eef3fb}
+.template-modal{width:min(760px,100%)}
+.template-modal textarea{width:100%;padding:11px 12px;border:1px solid var(--border);border-radius:8px;font:inherit;font-size:13px;color:#243044;resize:vertical}

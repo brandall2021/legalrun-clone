@@ -95,6 +95,10 @@ npm run dev
 - Los campos comodines activos del catálogo aparecen en ficha y alta de casos y
   guardan sus valores junto al expediente; sus encabezados se incluyen en las
   plantillas de importación/actualización y en el CSV de búsqueda.
+- Template incluye un editor de plantillas con comodines: permite crear y editar
+  escritos, insertar variables de la ficha y de los comodines activos,
+  previsualizar el texto con los datos de un expediente local, copiarlo y
+  descargarlo en `.txt`.
 - Búsqueda, orden por fecha y exportación CSV en las pestañas del expediente;
   contactos, seguimiento extrajudicial, gastos y honorarios con campos
   estructurados; tableros de stock (altas y solicitudes), estado procesal,

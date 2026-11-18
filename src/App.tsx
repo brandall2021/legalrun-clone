@@ -7,6 +7,7 @@ import { UsersAdminPage } from "./admin/UsersAdminPage";
 import { ProfilePage } from "./account/ProfilePage";
 import { FaqChatPage } from "./faq/FaqChatPage";
 import { buildSemaforoSummary, filterSemaforoItems, toSemaforoBucket, type SemaforoBucket } from "./semaforo";
+import { TemplatesPage } from "./templates/TemplatesPage";
 
 type CaseField = { key: string; label: string; value: string; select?: boolean; inputType?: string };
 type CaseRecord = { id: string; fields: Record<string, string>; createdAt?: string; updatedAt?: string; followed?: boolean };
@@ -743,6 +744,8 @@ export default function App() {
             <ProfilePage session={session} onSessionUpdated={(user) => setSession(user)} onSaved={report} />
           ) : renderedRoute === "#/client/configuracion/usersAbogado" ? (
             <UsersAdminPage onSaved={report} />
+          ) : renderedRoute === "#/client/configuracion/template" ? (
+            <TemplatesPage cases={cases} customFields={customFields} onSaved={report} />
           ) : renderedRoute === "#/client/configuracion/roles" ? (
             <RolesPage onSaved={report} />
           ) : renderedRoute === "#/client/configuracion/credentials" ? (
