@@ -111,6 +111,23 @@ function ensureAdminBootstrap(dataDir, email, overrides = {}) {
   return { roleId };
 }
 
+function renameRoleDirectly(dataDir, fromName, toName) {
+  const script = `
+    import { DatabaseSync } from "node:sqlite";
+    import { join } from "node:path";
+
+    const db = new DatabaseSync(join(process.env.DATA_DIR, "legalrun.sqlite"));
+    db.prepare("UPDATE studio_roles SET name = ?, updated_at = ? WHERE name = ? COLLATE NOCASE")
+      .run(process.env.TO_NAME, new Date().toISOString(), process.env.FROM_NAME);
+    db.close();
+  `;
+  execFileSync(process.execPath, ["--input-type=module", "--eval", script], {
+    env: { ...process.env, DATA_DIR: dataDir, FROM_NAME: fromName, TO_NAME: toName },
+    cwd: ROOT,
+    stdio: "pipe",
+  });
+}
+
 async function requestJson(baseUrl, path, options = {}) {
   const headers = { ...(options.headers || {}) };
   if (options.cookie) headers.cookie = options.cookie;
@@ -345,6 +362,23 @@ describe("account and admin backend", () => {
     expect(adminUsers.status).toBe(200);
   });
 
+  it("keeps admin access when the seeded admin role is renamed directly in the database", async () => {
+    const cookie = await registerAndGetCookie(baseUrl, "admin-stable@estudio.local");
+
+    renameRoleDirectly(dataDir, "Administrador", "Backoffice");
+
+    const session = await requestJson(baseUrl, "/api/auth/me", { cookie });
+    expect(session.status).toBe(200);
+    expect(session.body.user).toMatchObject({
+      email: "admin-stable@estudio.local",
+      roleName: "Backoffice",
+      isAdmin: true,
+    });
+
+    const adminUsers = await requestJson(baseUrl, "/api/admin/users", { cookie });
+    expect(adminUsers.status).toBe(200);
+  });
+
   it("creates admin-managed users with a temporary password", async () => {
     const cookie = await registerAndGetCookie(baseUrl, "admin-users@estudio.local");
     ensureAdminBootstrap(dataDir, "admin-users@estudio.local");
@@ -484,5 +518,56 @@ describe("account and admin backend", () => {
       status: "Vencido",
       lastCheckedAt: "2026-11-18T12:00:00.000Z",
     });
+  });
+
+  it("rejects invalid credential edits that blank required fields", async () => {
+    const cookie = await registerAndGetCookie(baseUrl, "admin-cred-edit@estudio.local");
+    ensureAdminBootstrap(dataDir, "admin-cred-edit@estudio.local");
+
+    const created = await requestJson(baseUrl, "/api/admin/credentials", {
+      method: "POST",
+      cookie,
+      body: {
+        name: "SCBA principal",
+        credentialType: "SCBA",
+        ownerName: "Lucía Suárez",
+        status: "Activo",
+      },
+    });
+    expect(created.status).toBe(201);
+
+    const blanked = await requestJson(baseUrl, `/api/admin/credentials/${created.body.credential.id}`, {
+      method: "PUT",
+      cookie,
+      body: { name: "   " },
+    });
+
+    expect(blanked.status).toBe(400);
+    expect(blanked.body.error).toContain("credencial");
+  });
+
+  it("rejects invalid scba token edits that blank required fields", async () => {
+    const cookie = await registerAndGetCookie(baseUrl, "admin-scba-edit@estudio.local");
+    ensureAdminBootstrap(dataDir, "admin-scba-edit@estudio.local");
+
+    const created = await requestJson(baseUrl, "/api/admin/scba-tokens", {
+      method: "POST",
+      cookie,
+      body: {
+        alias: "Token SCBA principal",
+        holderName: "Lucía Suárez",
+        status: "Activo",
+      },
+    });
+    expect(created.status).toBe(201);
+
+    const blanked = await requestJson(baseUrl, `/api/admin/scba-tokens/${created.body.scbaToken.id}`, {
+      method: "PUT",
+      cookie,
+      body: { alias: "" },
+    });
+
+    expect(blanked.status).toBe(400);
+    expect(blanked.body.error).toContain("token");
   });
 });

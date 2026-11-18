@@ -114,14 +114,26 @@ db.exec(`
   );
 `);
 
+function ensureStudioRoleColumn(name, definition) {
+  const columns = new Set(db.prepare("PRAGMA table_info(studio_roles)").all().map((column) => column.name));
+  if (!columns.has(name)) db.exec(`ALTER TABLE studio_roles ADD COLUMN ${name} ${definition}`);
+}
+
+const ADMIN_ROLE_NAME = "Administrador";
+const ADMIN_SYSTEM_KEY = "admin";
+
+ensureStudioRoleColumn("system_key", "TEXT NOT NULL DEFAULT ''");
+
 db.prepare("UPDATE users SET updated_at = created_at WHERE COALESCE(updated_at, '') = ''").run();
 
-const seededAdminRole = db.prepare("SELECT id FROM studio_roles WHERE name = ? COLLATE NOCASE").get("Administrador");
+const seededAdminRole = db.prepare("SELECT id FROM studio_roles WHERE name = ? COLLATE NOCASE").get(ADMIN_ROLE_NAME);
 if (!seededAdminRole) {
   const createdAt = new Date().toISOString();
-  db.prepare("INSERT INTO studio_roles(id, name, description, is_active, created_at, updated_at) VALUES(?, ?, ?, ?, ?, ?)")
-    .run(randomUUID(), "Administrador", "Rol administrador local", 1, createdAt, createdAt);
+  db.prepare("INSERT INTO studio_roles(id, name, description, is_active, created_at, updated_at, system_key) VALUES(?, ?, ?, ?, ?, ?, ?)")
+    .run(randomUUID(), ADMIN_ROLE_NAME, "Rol administrador local", 1, createdAt, createdAt, ADMIN_SYSTEM_KEY);
 }
+db.prepare("UPDATE studio_roles SET system_key = ? WHERE name = ? COLLATE NOCASE AND COALESCE(system_key, '') = ''")
+  .run(ADMIN_SYSTEM_KEY, ADMIN_ROLE_NAME);
 
 const now = () => new Date().toISOString();
 const readJson = (value) => JSON.parse(value);
@@ -611,7 +623,7 @@ function sessionUser(req) {
   if (!token) return null;
   const tokenHash = createHash("sha256").update(token).digest("hex");
   const row = db.prepare(`SELECT users.id, users.email, users.first_name, users.last_name, users.phone_mobile, users.phone_work, users.role_id, users.job_title,
-    users.is_active, users.is_responsible, users.created_at, users.updated_at, studio_roles.name AS role_name
+    users.is_active, users.is_responsible, users.created_at, users.updated_at, studio_roles.name AS role_name, studio_roles.system_key AS role_system_key
     FROM sessions
     JOIN users ON users.id = sessions.user_id
     LEFT JOIN studio_roles ON studio_roles.id = users.role_id
@@ -650,7 +662,6 @@ async function getJson(req, maxBytes = 1_000_000) {
 }
 
 const STUDIO_STATUS_VALUES = new Set(["Activo", "Pendiente", "Vencido", "Inactivo"]);
-const ADMIN_ROLE_NAME = "Administrador";
 
 function toFlag(value, fallback = false) {
   if (value === undefined) return fallback ? 1 : 0;
@@ -678,7 +689,7 @@ function hashPassword(password) {
 
 function userSelect(where = "") {
   return `SELECT users.id, users.email, users.first_name, users.last_name, users.phone_mobile, users.phone_work, users.role_id, users.job_title,
-    users.is_active, users.is_responsible, users.created_at, users.updated_at, studio_roles.name AS role_name
+    users.is_active, users.is_responsible, users.created_at, users.updated_at, studio_roles.name AS role_name, studio_roles.system_key AS role_system_key
     FROM users
     LEFT JOIN studio_roles ON studio_roles.id = users.role_id
     ${where}`;
@@ -692,7 +703,7 @@ function mapSessionUser(row) {
     firstName: row.first_name || "",
     lastName: row.last_name || "",
     roleName: row.role_name || "",
-    isAdmin: String(row.role_name || "").toLowerCase() === ADMIN_ROLE_NAME.toLowerCase(),
+    isAdmin: row.role_system_key === ADMIN_SYSTEM_KEY,
   };
 }
 
@@ -724,7 +735,7 @@ function getStudioUserById(id) {
 
 function requireRole(roleId) {
   if (!roleId) return null;
-  return db.prepare("SELECT id, name, description, is_active, created_at, updated_at FROM studio_roles WHERE id = ?").get(roleId) || null;
+  return db.prepare("SELECT id, name, description, is_active, created_at, updated_at, system_key FROM studio_roles WHERE id = ?").get(roleId) || null;
 }
 
 function mapRole(row) {
@@ -899,7 +910,7 @@ const server = createServer(async (req, res) => {
 
     if (parts[0] === "api" && parts[1] === "admin" && parts[2] === "roles") {
       if (req.method === "GET" && parts.length === 3) {
-        const roles = db.prepare("SELECT id, name, description, is_active, created_at, updated_at FROM studio_roles ORDER BY name COLLATE NOCASE").all();
+        const roles = db.prepare("SELECT id, name, description, is_active, created_at, updated_at, system_key FROM studio_roles ORDER BY name COLLATE NOCASE").all();
         return sendJson(res, 200, { roles: roles.map(mapRole) });
       }
       if (req.method === "POST" && parts.length === 3) {
@@ -916,15 +927,15 @@ const server = createServer(async (req, res) => {
           if (String(error?.code || "").includes("CONSTRAINT")) return sendJson(res, 409, { error: "Ya existe un rol con ese nombre" });
           throw error;
         }
-        return sendJson(res, 201, { role: mapRole(db.prepare("SELECT id, name, description, is_active, created_at, updated_at FROM studio_roles WHERE id = ?").get(id)) });
+        return sendJson(res, 201, { role: mapRole(db.prepare("SELECT id, name, description, is_active, created_at, updated_at, system_key FROM studio_roles WHERE id = ?").get(id)) });
       }
       if (req.method === "PUT" && parts[3]) {
-        const current = db.prepare("SELECT id, name, description, is_active, created_at, updated_at FROM studio_roles WHERE id = ?").get(parts[3]);
+        const current = db.prepare("SELECT id, name, description, is_active, created_at, updated_at, system_key FROM studio_roles WHERE id = ?").get(parts[3]);
         if (!current) return sendJson(res, 404, { error: "Rol no encontrado" });
         const body = await getJson(req);
         const nextName = body?.name === undefined ? current.name : String(body.name || "").trim();
         if (!nextName) return sendJson(res, 400, { error: "El nombre del rol es obligatorio" });
-        if (current.name === ADMIN_ROLE_NAME && nextName !== current.name) {
+        if (current.system_key === ADMIN_SYSTEM_KEY && nextName !== current.name) {
           return sendJson(res, 400, { error: "El rol Administrador sembrado no puede renombrarse" });
         }
         const updatedAt = now();
@@ -935,7 +946,7 @@ const server = createServer(async (req, res) => {
           if (String(error?.code || "").includes("CONSTRAINT")) return sendJson(res, 409, { error: "Ya existe un rol con ese nombre" });
           throw error;
         }
-        return sendJson(res, 200, { role: mapRole(db.prepare("SELECT id, name, description, is_active, created_at, updated_at FROM studio_roles WHERE id = ?").get(parts[3])) });
+        return sendJson(res, 200, { role: mapRole(db.prepare("SELECT id, name, description, is_active, created_at, updated_at, system_key FROM studio_roles WHERE id = ?").get(parts[3])) });
       }
     }
 
@@ -1063,14 +1074,20 @@ const server = createServer(async (req, res) => {
         const body = await getJson(req);
         const status = body?.status === undefined ? current.status : readStudioStatus(body.status);
         if (!status) return sendJson(res, 400, { error: "El estado debe ser Activo, Pendiente, Vencido o Inactivo" });
+        const nextName = body?.name === undefined ? current.name : String(body.name || "").trim();
+        const nextCredentialType = body?.credentialType === undefined ? current.credential_type : String(body.credentialType || "").trim();
+        const nextOwnerName = body?.ownerName === undefined ? current.owner_name : String(body.ownerName || "").trim();
+        if (!nextName || !nextCredentialType || !nextOwnerName) {
+          return sendJson(res, 400, { error: "Completá nombre, tipo y titular de la credencial" });
+        }
         db.prepare(`
           UPDATE studio_credentials
           SET name = ?, credential_type = ?, owner_name = ?, status = ?, expires_on = ?, notes = ?, updated_at = ?
           WHERE id = ?
         `).run(
-          body?.name === undefined ? current.name : String(body.name || "").trim(),
-          body?.credentialType === undefined ? current.credential_type : String(body.credentialType || "").trim(),
-          body?.ownerName === undefined ? current.owner_name : String(body.ownerName || "").trim(),
+          nextName,
+          nextCredentialType,
+          nextOwnerName,
           status,
           body?.expiresOn === undefined ? current.expires_on : String(body.expiresOn || "").trim(),
           body?.notes === undefined ? current.notes : String(body.notes || "").trim(),
@@ -1117,13 +1134,18 @@ const server = createServer(async (req, res) => {
         const body = await getJson(req);
         const status = body?.status === undefined ? current.status : readStudioStatus(body.status);
         if (!status) return sendJson(res, 400, { error: "El estado debe ser Activo, Pendiente, Vencido o Inactivo" });
+        const nextAlias = body?.alias === undefined ? current.alias : String(body.alias || "").trim();
+        const nextHolderName = body?.holderName === undefined ? current.holder_name : String(body.holderName || "").trim();
+        if (!nextAlias || !nextHolderName) {
+          return sendJson(res, 400, { error: "Completá alias y titular del token" });
+        }
         db.prepare(`
           UPDATE studio_scba_tokens
           SET alias = ?, holder_name = ?, status = ?, expires_on = ?, last_checked_at = ?, notes = ?, updated_at = ?
           WHERE id = ?
         `).run(
-          body?.alias === undefined ? current.alias : String(body.alias || "").trim(),
-          body?.holderName === undefined ? current.holder_name : String(body.holderName || "").trim(),
+          nextAlias,
+          nextHolderName,
           status,
           body?.expiresOn === undefined ? current.expires_on : String(body.expiresOn || "").trim(),
           body?.lastCheckedAt === undefined ? current.last_checked_at : String(body.lastCheckedAt || "").trim(),

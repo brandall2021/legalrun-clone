@@ -229,3 +229,35 @@ it("normalizes an ISO lastCheckedAt value for the date field and preserves it on
   });
   expect(onSaved).toHaveBeenCalledWith("Token SCBA actualizado en la base local");
 });
+
+it("shows a no-results message when the filter matches nothing", async () => {
+  const createdAt = "2026-11-18T10:00:00.000Z";
+  vi.stubGlobal("fetch", vi.fn(async () => ({
+    ok: true,
+    json: async () => ({
+      scbaTokens: [
+        {
+          id: "token-1",
+          alias: "Token principal",
+          holderName: "Lucía Suárez",
+          status: "Activo",
+          expiresOn: "",
+          lastCheckedAt: "",
+          notes: "",
+          createdAt,
+          updatedAt: createdAt,
+        },
+      ],
+    }),
+  })));
+
+  render(<ScbaTokensPage onSaved={() => {}} />);
+
+  expect(await screen.findByText("Token principal")).toBeTruthy();
+
+  const user = userEvent.setup();
+  await user.type(screen.getByPlaceholderText("Buscar por alias, titular o estado..."), "zzz");
+
+  expect(screen.getByText("No hay resultados para el filtro aplicado.")).toBeTruthy();
+  expect(screen.queryByText("No hay tokens SCBA cargados todavía.")).toBeNull();
+});

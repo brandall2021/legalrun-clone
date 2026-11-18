@@ -208,7 +208,9 @@ export function ScbaTokensPage({ onSaved }: { onSaved: (message: string) => void
             </table>
           </div>
         ) : (
-          <div className="empty-table">No hay tokens SCBA cargados todavía.</div>
+          <div className="empty-table">
+            {tokens.length ? "No hay resultados para el filtro aplicado." : "No hay tokens SCBA cargados todavía."}
+          </div>
         )}
       </section>
 

@@ -135,3 +135,35 @@ it("creates and edits a credential with the fixed admin statuses", async () => {
   expect(onSaved).toHaveBeenNthCalledWith(1, "Credencial creada en la base local");
   expect(onSaved).toHaveBeenNthCalledWith(2, "Credencial actualizada en la base local");
 });
+
+it("shows a no-results message when the filter matches nothing", async () => {
+  const createdAt = "2026-11-18T10:00:00.000Z";
+  vi.stubGlobal("fetch", vi.fn(async () => ({
+    ok: true,
+    json: async () => ({
+      credentials: [
+        {
+          id: "cred-1",
+          name: "SCBA principal",
+          credentialType: "SCBA",
+          ownerName: "Lucía Suárez",
+          status: "Activo",
+          expiresOn: "",
+          notes: "",
+          createdAt,
+          updatedAt: createdAt,
+        },
+      ],
+    }),
+  })));
+
+  render(<CredentialsPage onSaved={() => {}} />);
+
+  expect(await screen.findByText("SCBA principal")).toBeTruthy();
+
+  const user = userEvent.setup();
+  await user.type(screen.getByPlaceholderText("Buscar por nombre, tipo, titular o estado..."), "zzz");
+
+  expect(screen.getByText("No hay resultados para el filtro aplicado.")).toBeTruthy();
+  expect(screen.queryByText("No hay credenciales cargadas todavía.")).toBeNull();
+});

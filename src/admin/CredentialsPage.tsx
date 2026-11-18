@@ -193,7 +193,9 @@ export function CredentialsPage({ onSaved }: { onSaved: (message: string) => voi
             </table>
           </div>
         ) : (
-          <div className="empty-table">No hay credenciales cargadas todavía.</div>
+          <div className="empty-table">
+            {credentials.length ? "No hay resultados para el filtro aplicado." : "No hay credenciales cargadas todavía."}
+          </div>
         )}
       </section>
 
