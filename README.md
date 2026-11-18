@@ -17,11 +17,54 @@ incluye en Git. En el primer uso, crea una cuenta local con una contraseña de a
 menos 12 caracteres; luego ingresa con esa cuenta. La ruta de un expediente de
 ejemplo es `#/client/searchinf/detail/demo-10482`.
 
+## Chat FAQ con n8n
+
+La app incluye un chat FAQ conectado por backend a n8n.
+
+- Variable requerida: `N8N_FAQ_WEBHOOK_URL`
+- Uso: la web envía la pregunta al endpoint local `POST /api/faq/chat`, y ese
+  endpoint reenvía la consulta al webhook de n8n.
+- Alcance: los documentos y la base de conocimiento se administran en n8n; la
+  UI pública solo pregunta y muestra la respuesta.
+
+### Configuración local
+
+PowerShell:
+
+```powershell
+$env:N8N_FAQ_WEBHOOK_URL="https://tu-instancia-n8n/webhook/faq"
+npm run dev
+```
+
+CMD:
+
+```cmd
+set N8N_FAQ_WEBHOOK_URL=https://tu-instancia-n8n/webhook/faq
+npm run dev
+```
+
+### Verificación manual
+
+- Abrir `http://127.0.0.1:5173/#/faq`
+- Enviar una consulta de prueba
+- Confirmar que la respuesta llega desde n8n
+- Verificar también el acceso desde el botón **Asistente IA** dentro de la app
+
 ## Alcance actual
 
 - Shell de navegación para casos, agenda, inbox, novedades, reportes,
   administración y catálogos de configuración.
 - API propia con autenticación local, sesiones HTTP-only y SQLite en loopback.
+- Perfil permite consultar y actualizar los datos básicos del usuario autenticado
+  reutilizando la sesión local existente.
+- Los módulos de estudio Usuarios, Roles, Credenciales y Token SCBA están
+  disponibles solo para el rol Administrador.
+- Usuarios y Roles permiten alta, edición, búsqueda y asignación local de
+  permisos; los usuarios creados desde la suite administrativa reciben una
+  contraseña temporal local.
+- Credenciales y Token SCBA permiten registrar y seguir estados locales del
+  estudio (`Activo`, `Pendiente`, `Vencido`, `Inactivo`) sin conectarse a
+  servicios externos.
 - Cambio de contraseña con verificación de la clave actual, mínimo de 12
   caracteres y revocación de las otras sesiones.
 - Copia de seguridad JSON de casos, módulos, auditoría y archivos adjuntos; no
@@ -56,6 +99,8 @@ ejemplo es `#/client/searchinf/detail/demo-10482`.
   contactos, seguimiento extrajudicial, gastos y honorarios con campos
   estructurados; tableros de stock (altas y solicitudes), estado procesal,
   actividad e impulso calculados desde SQLite.
+- Semáforo ofrece una vista dedicada del nivel de actividad, prioridad e
+  inactividad local de los expedientes a partir del dashboard de actividad.
 - Los reportes guardados conservan sus filtros y una copia exportable del
   resultado al momento de guardarlos.
 - El constructor de reportes filtra por estado, tipo, portfolio, jurisdicción y

@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "
 import { basename, extname, relative, resolve } from "node:path";
 import { createServer } from "node:http";
 import { DatabaseSync } from "node:sqlite";
+import { FaqChatError, createFaqChatClient } from "./faq-chat.mjs";
 
 const PORT = Number(process.env.API_PORT || 3001);
 const DATA_DIR = resolve(process.env.LEGALRUN_DATA_DIR || "./data");
@@ -10,6 +11,7 @@ const UPLOAD_DIR = resolve(DATA_DIR, "uploads");
 mkdirSync(DATA_DIR, { recursive: true });
 mkdirSync(UPLOAD_DIR, { recursive: true });
 const db = new DatabaseSync(resolve(DATA_DIR, "legalrun.sqlite"));
+const faqChatClient = createFaqChatClient();
 
 db.exec(`
   PRAGMA journal_mode = WAL;
@@ -63,6 +65,63 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS ix_audit_log_created ON audit_log(created_at);
 `);
+
+function ensureUserColumn(name, definition) {
+  const columns = new Set(db.prepare("PRAGMA table_info(users)").all().map((column) => column.name));
+  if (!columns.has(name)) db.exec(`ALTER TABLE users ADD COLUMN ${name} ${definition}`);
+}
+
+ensureUserColumn("first_name", "TEXT NOT NULL DEFAULT ''");
+ensureUserColumn("last_name", "TEXT NOT NULL DEFAULT ''");
+ensureUserColumn("phone_mobile", "TEXT NOT NULL DEFAULT ''");
+ensureUserColumn("phone_work", "TEXT NOT NULL DEFAULT ''");
+ensureUserColumn("role_id", "TEXT");
+ensureUserColumn("job_title", "TEXT NOT NULL DEFAULT ''");
+ensureUserColumn("is_active", "INTEGER NOT NULL DEFAULT 1");
+ensureUserColumn("is_responsible", "INTEGER NOT NULL DEFAULT 0");
+ensureUserColumn("updated_at", "TEXT NOT NULL DEFAULT ''");
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS studio_roles (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    description TEXT NOT NULL DEFAULT '',
+    is_active INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS studio_credentials (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    credential_type TEXT NOT NULL,
+    owner_name TEXT NOT NULL,
+    status TEXT NOT NULL,
+    expires_on TEXT NOT NULL DEFAULT '',
+    notes TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS studio_scba_tokens (
+    id TEXT PRIMARY KEY,
+    alias TEXT NOT NULL,
+    holder_name TEXT NOT NULL,
+    status TEXT NOT NULL,
+    expires_on TEXT NOT NULL DEFAULT '',
+    last_checked_at TEXT NOT NULL DEFAULT '',
+    notes TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+`);
+
+db.prepare("UPDATE users SET updated_at = created_at WHERE COALESCE(updated_at, '') = ''").run();
+
+const seededAdminRole = db.prepare("SELECT id FROM studio_roles WHERE name = ? COLLATE NOCASE").get("Administrador");
+if (!seededAdminRole) {
+  const createdAt = new Date().toISOString();
+  db.prepare("INSERT INTO studio_roles(id, name, description, is_active, created_at, updated_at) VALUES(?, ?, ?, ?, ?, ?)")
+    .run(randomUUID(), "Administrador", "Rol administrador local", 1, createdAt, createdAt);
+}
 
 const now = () => new Date().toISOString();
 const readJson = (value) => JSON.parse(value);
@@ -551,9 +610,13 @@ function sessionUser(req) {
   const token = cookieValue(req, "legalrun_session");
   if (!token) return null;
   const tokenHash = createHash("sha256").update(token).digest("hex");
-  return db.prepare(`SELECT users.id, users.email
-    FROM sessions JOIN users ON users.id = sessions.user_id
-    WHERE sessions.token_hash = ? AND sessions.expires_at > ?`).get(tokenHash, now()) || null;
+  const row = db.prepare(`SELECT users.id, users.email, users.first_name, users.last_name, users.phone_mobile, users.phone_work, users.role_id, users.job_title,
+    users.is_active, users.is_responsible, users.created_at, users.updated_at, studio_roles.name AS role_name
+    FROM sessions
+    JOIN users ON users.id = sessions.user_id
+    LEFT JOIN studio_roles ON studio_roles.id = users.role_id
+    WHERE sessions.token_hash = ? AND sessions.expires_at > ?`).get(tokenHash, now());
+  return mapSessionUser(row);
 }
 
 function addAudit(req, caseId, action, detail) {
@@ -586,6 +649,126 @@ async function getJson(req, maxBytes = 1_000_000) {
   }
 }
 
+const STUDIO_STATUS_VALUES = new Set(["Activo", "Pendiente", "Vencido", "Inactivo"]);
+const ADMIN_ROLE_NAME = "Administrador";
+
+function toFlag(value, fallback = false) {
+  if (value === undefined) return fallback ? 1 : 0;
+  return value ? 1 : 0;
+}
+
+function validEmail(value) {
+  return /^\S+@\S+\.\S+$/.test(value);
+}
+
+function validTemporaryPassword(value) {
+  return String(value || "").length >= 12;
+}
+
+function readStudioStatus(value) {
+  const status = String(value || "").trim();
+  return STUDIO_STATUS_VALUES.has(status) ? status : null;
+}
+
+function hashPassword(password) {
+  const salt = randomBytes(16).toString("hex");
+  const passwordHash = scryptSync(password, salt, 64).toString("hex");
+  return { salt, passwordHash };
+}
+
+function userSelect(where = "") {
+  return `SELECT users.id, users.email, users.first_name, users.last_name, users.phone_mobile, users.phone_work, users.role_id, users.job_title,
+    users.is_active, users.is_responsible, users.created_at, users.updated_at, studio_roles.name AS role_name
+    FROM users
+    LEFT JOIN studio_roles ON studio_roles.id = users.role_id
+    ${where}`;
+}
+
+function mapSessionUser(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    email: row.email,
+    firstName: row.first_name || "",
+    lastName: row.last_name || "",
+    roleName: row.role_name || "",
+    isAdmin: String(row.role_name || "").toLowerCase() === ADMIN_ROLE_NAME.toLowerCase(),
+  };
+}
+
+function mapStudioUser(row) {
+  if (!row) return null;
+  const sessionShape = mapSessionUser(row);
+  return {
+    ...sessionShape,
+    phoneMobile: row.phone_mobile || "",
+    phoneWork: row.phone_work || "",
+    roleId: row.role_id || null,
+    jobTitle: row.job_title || "",
+    isActive: Boolean(row.is_active),
+    isResponsible: Boolean(row.is_responsible),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function getSessionUserById(id) {
+  const row = db.prepare(userSelect("WHERE users.id = ?")).get(id);
+  return mapSessionUser(row);
+}
+
+function getStudioUserById(id) {
+  const row = db.prepare(userSelect("WHERE users.id = ?")).get(id);
+  return mapStudioUser(row);
+}
+
+function requireRole(roleId) {
+  if (!roleId) return null;
+  return db.prepare("SELECT id, name, description, is_active, created_at, updated_at FROM studio_roles WHERE id = ?").get(roleId) || null;
+}
+
+function mapRole(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    name: row.name,
+    description: row.description || "",
+    isActive: Boolean(row.is_active),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function mapCredential(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    name: row.name,
+    credentialType: row.credential_type,
+    ownerName: row.owner_name,
+    status: row.status,
+    expiresOn: row.expires_on || "",
+    notes: row.notes || "",
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function mapScbaToken(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    alias: row.alias,
+    holderName: row.holder_name,
+    status: row.status,
+    expiresOn: row.expires_on || "",
+    lastCheckedAt: row.last_checked_at || "",
+    notes: row.notes || "",
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
 function allCases(query = "") {
   const rows = db.prepare("SELECT id, data, created_at, updated_at FROM cases ORDER BY updated_at DESC").all();
   const cases = rows.map((row) => ({ id: row.id, ...readJson(row.data), createdAt: row.created_at, updatedAt: row.updated_at }));
@@ -607,20 +790,26 @@ const server = createServer(async (req, res) => {
       const body = await getJson(req);
       const email = String(body?.email || "").trim().toLowerCase();
       const password = String(body?.password || "");
-      if (!/^\S+@\S+\.\S+$/.test(email)) return sendJson(res, 400, { error: "Ingresá un email válido" });
-      if (password.length < 12) return sendJson(res, 400, { error: "La contraseña debe tener al menos 12 caracteres" });
-      const salt = randomBytes(16).toString("hex");
-      const hash = scryptSync(password, salt, 64).toString("hex");
+      if (!validEmail(email)) return sendJson(res, 400, { error: "Ingresá un email válido" });
+      if (!validTemporaryPassword(password)) return sendJson(res, 400, { error: "La contraseña debe tener al menos 12 caracteres" });
+      const createdAt = now();
+      const { salt, passwordHash } = hashPassword(password);
       const id = randomUUID();
+      const isFirstUser = Number(db.prepare("SELECT COUNT(*) AS count FROM users").get().count || 0) === 0;
+      const adminRole = isFirstUser
+        ? db.prepare("SELECT id FROM studio_roles WHERE name = ? COLLATE NOCASE").get(ADMIN_ROLE_NAME)
+        : null;
       try {
-        db.prepare("INSERT INTO users(id, email, salt, password_hash, created_at) VALUES(?, ?, ?, ?, ?)")
-          .run(id, email, salt, hash, now());
+        db.prepare(`INSERT INTO users(
+          id, email, salt, password_hash, created_at, first_name, last_name, role_id, job_title, is_active, is_responsible, updated_at
+        ) VALUES(?, ?, ?, ?, ?, '', '', ?, '', 1, ?, ?)`)
+          .run(id, email, salt, passwordHash, createdAt, adminRole?.id || null, isFirstUser ? 1 : 0, createdAt);
       } catch (error) {
         if (String(error?.code || "").includes("CONSTRAINT")) return sendJson(res, 409, { error: "Ya existe una cuenta con ese email" });
         throw error;
       }
       issueSession(res, id);
-      return sendJson(res, 201, { user: { id, email } });
+      return sendJson(res, 201, { user: getSessionUserById(id) });
     }
 
     if (req.method === "POST" && url.pathname === "/api/auth/login") {
@@ -635,7 +824,7 @@ const server = createServer(async (req, res) => {
         return sendJson(res, 401, { error: "Email o contraseña incorrectos" });
       }
       issueSession(res, user.id);
-      return sendJson(res, 200, { user: { id: user.id, email: user.email } });
+      return sendJson(res, 200, { user: getSessionUserById(user.id) });
     }
 
     if (req.method === "GET" && url.pathname === "/api/auth/me") {
@@ -662,15 +851,289 @@ const server = createServer(async (req, res) => {
       if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) return sendJson(res, 401, { error: "La contraseña actual es incorrecta" });
       if (newPassword.length < 12) return sendJson(res, 400, { error: "La nueva contraseña debe tener al menos 12 caracteres" });
       if (newPassword === currentPassword) return sendJson(res, 400, { error: "La nueva contraseña debe ser distinta de la actual" });
-      const salt = randomBytes(16).toString("hex");
-      const passwordHash = scryptSync(newPassword, salt, 64).toString("hex");
-      db.prepare("UPDATE users SET salt = ?, password_hash = ? WHERE id = ?").run(salt, passwordHash, user.id);
+      const { salt, passwordHash } = hashPassword(newPassword);
+      db.prepare("UPDATE users SET salt = ?, password_hash = ?, updated_at = ? WHERE id = ?").run(salt, passwordHash, now(), user.id);
       db.prepare("DELETE FROM sessions WHERE user_id = ?").run(user.id);
       issueSession(res, user.id);
       return sendJson(res, 200, { ok: true });
     }
 
-    if (!sessionUser(req)) return sendJson(res, 401, { error: "Iniciá sesión para continuar" });
+    if (req.method === "POST" && url.pathname === "/api/faq/chat") {
+      try {
+        const body = await getJson(req);
+        const result = await faqChatClient.sendMessage(body?.message);
+        return sendJson(res, 200, result);
+      } catch (error) {
+        if (error instanceof FaqChatError) return sendJson(res, error.status, { error: error.message });
+        throw error;
+      }
+    }
+
+    const currentUser = sessionUser(req);
+    if (!currentUser) return sendJson(res, 401, { error: "Iniciá sesión para continuar" });
+
+    if (req.method === "GET" && url.pathname === "/api/account/profile") {
+      return sendJson(res, 200, { profile: getStudioUserById(currentUser.id) });
+    }
+
+    if (req.method === "PUT" && url.pathname === "/api/account/profile") {
+      const body = await getJson(req);
+      const currentProfile = getStudioUserById(currentUser.id);
+      if (!currentProfile) return sendJson(res, 404, { error: "Cuenta local no encontrada" });
+      const firstName = String(body?.firstName || "").trim();
+      const lastName = String(body?.lastName || "").trim();
+      const phoneMobile = String(body?.phoneMobile || "").trim();
+      const phoneWork = String(body?.phoneWork || "").trim();
+      const jobTitle = String(body?.jobTitle || "").trim();
+      db.prepare(`
+        UPDATE users
+        SET first_name = ?, last_name = ?, phone_mobile = ?, phone_work = ?, job_title = ?, updated_at = ?
+        WHERE id = ?
+      `).run(firstName, lastName, phoneMobile, phoneWork, jobTitle, now(), currentUser.id);
+      return sendJson(res, 200, { profile: getStudioUserById(currentUser.id) });
+    }
+
+    if (url.pathname.startsWith("/api/admin/") && !currentUser.isAdmin) {
+      return sendJson(res, 403, { error: "Solo los usuarios Administrador pueden acceder a esta sección" });
+    }
+
+    if (parts[0] === "api" && parts[1] === "admin" && parts[2] === "roles") {
+      if (req.method === "GET" && parts.length === 3) {
+        const roles = db.prepare("SELECT id, name, description, is_active, created_at, updated_at FROM studio_roles ORDER BY name COLLATE NOCASE").all();
+        return sendJson(res, 200, { roles: roles.map(mapRole) });
+      }
+      if (req.method === "POST" && parts.length === 3) {
+        const body = await getJson(req);
+        const name = String(body?.name || "").trim();
+        if (!name) return sendJson(res, 400, { error: "El nombre del rol es obligatorio" });
+        const description = String(body?.description || "").trim();
+        const createdAt = now();
+        const id = randomUUID();
+        try {
+          db.prepare("INSERT INTO studio_roles(id, name, description, is_active, created_at, updated_at) VALUES(?, ?, ?, ?, ?, ?)")
+            .run(id, name, description, toFlag(body?.isActive, true), createdAt, createdAt);
+        } catch (error) {
+          if (String(error?.code || "").includes("CONSTRAINT")) return sendJson(res, 409, { error: "Ya existe un rol con ese nombre" });
+          throw error;
+        }
+        return sendJson(res, 201, { role: mapRole(db.prepare("SELECT id, name, description, is_active, created_at, updated_at FROM studio_roles WHERE id = ?").get(id)) });
+      }
+      if (req.method === "PUT" && parts[3]) {
+        const current = db.prepare("SELECT id, name, description, is_active, created_at, updated_at FROM studio_roles WHERE id = ?").get(parts[3]);
+        if (!current) return sendJson(res, 404, { error: "Rol no encontrado" });
+        const body = await getJson(req);
+        const nextName = body?.name === undefined ? current.name : String(body.name || "").trim();
+        if (!nextName) return sendJson(res, 400, { error: "El nombre del rol es obligatorio" });
+        if (current.name === ADMIN_ROLE_NAME && nextName !== current.name) {
+          return sendJson(res, 400, { error: "El rol Administrador sembrado no puede renombrarse" });
+        }
+        const updatedAt = now();
+        try {
+          db.prepare("UPDATE studio_roles SET name = ?, description = ?, is_active = ?, updated_at = ? WHERE id = ?")
+            .run(nextName, body?.description === undefined ? current.description : String(body.description || "").trim(), body?.isActive === undefined ? current.is_active : toFlag(body.isActive), updatedAt, parts[3]);
+        } catch (error) {
+          if (String(error?.code || "").includes("CONSTRAINT")) return sendJson(res, 409, { error: "Ya existe un rol con ese nombre" });
+          throw error;
+        }
+        return sendJson(res, 200, { role: mapRole(db.prepare("SELECT id, name, description, is_active, created_at, updated_at FROM studio_roles WHERE id = ?").get(parts[3])) });
+      }
+    }
+
+    if (parts[0] === "api" && parts[1] === "admin" && parts[2] === "users") {
+      if (req.method === "GET" && parts.length === 3) {
+        const users = db.prepare(userSelect("ORDER BY users.email COLLATE NOCASE")).all();
+        return sendJson(res, 200, { users: users.map(mapStudioUser) });
+      }
+      if (req.method === "POST" && parts.length === 3) {
+        const body = await getJson(req);
+        const email = String(body?.email || "").trim().toLowerCase();
+        const temporaryPassword = String(body?.temporaryPassword || "");
+        if (!validEmail(email)) return sendJson(res, 400, { error: "Ingresá un email válido" });
+        if (!validTemporaryPassword(temporaryPassword)) return sendJson(res, 400, { error: "La contraseña temporal debe tener al menos 12 caracteres" });
+        const role = requireRole(body?.roleId);
+        if (body?.roleId && !role) return sendJson(res, 400, { error: "El rol seleccionado no existe" });
+        const createdAt = now();
+        const id = randomUUID();
+        const { salt, passwordHash } = hashPassword(temporaryPassword);
+        try {
+          db.prepare(`INSERT INTO users(
+            id, email, salt, password_hash, created_at, first_name, last_name, role_id, job_title, is_active, is_responsible, updated_at
+          ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+            .run(
+              id,
+              email,
+              salt,
+              passwordHash,
+              createdAt,
+              String(body?.firstName || "").trim(),
+              String(body?.lastName || "").trim(),
+              role?.id || null,
+              String(body?.jobTitle || "").trim(),
+              toFlag(body?.isActive, true),
+              toFlag(body?.isResponsible, false),
+              createdAt,
+            );
+        } catch (error) {
+          if (String(error?.code || "").includes("CONSTRAINT")) return sendJson(res, 409, { error: "Ya existe una cuenta con ese email" });
+          throw error;
+        }
+        return sendJson(res, 201, { user: getStudioUserById(id) });
+      }
+      if (req.method === "PUT" && parts[3]) {
+        const current = db.prepare("SELECT id, email, role_id, first_name, last_name, job_title, is_active, is_responsible FROM users WHERE id = ?").get(parts[3]);
+        if (!current) return sendJson(res, 404, { error: "Usuario no encontrado" });
+        const body = await getJson(req);
+        const nextEmail = body?.email === undefined ? current.email : String(body.email || "").trim().toLowerCase();
+        if (!validEmail(nextEmail)) return sendJson(res, 400, { error: "Ingresá un email válido" });
+        const role = body?.roleId === undefined ? requireRole(current.role_id) : requireRole(body.roleId);
+        if (body?.roleId && !role) return sendJson(res, 400, { error: "El rol seleccionado no existe" });
+        if (body?.temporaryPassword !== undefined && !validTemporaryPassword(body.temporaryPassword)) {
+          return sendJson(res, 400, { error: "La contraseña temporal debe tener al menos 12 caracteres" });
+        }
+        const updatedAt = now();
+        try {
+          if (body?.temporaryPassword !== undefined) {
+            const { salt, passwordHash } = hashPassword(String(body.temporaryPassword || ""));
+            db.prepare(`
+              UPDATE users
+              SET email = ?, first_name = ?, last_name = ?, role_id = ?, job_title = ?, is_active = ?, is_responsible = ?, salt = ?, password_hash = ?, updated_at = ?
+              WHERE id = ?
+            `).run(
+              nextEmail,
+              body?.firstName === undefined ? current.first_name : String(body.firstName || "").trim(),
+              body?.lastName === undefined ? current.last_name : String(body.lastName || "").trim(),
+              body?.roleId === undefined ? current.role_id : role?.id || null,
+              body?.jobTitle === undefined ? current.job_title : String(body.jobTitle || "").trim(),
+              body?.isActive === undefined ? current.is_active : toFlag(body.isActive),
+              body?.isResponsible === undefined ? current.is_responsible : toFlag(body.isResponsible),
+              salt,
+              passwordHash,
+              updatedAt,
+              parts[3],
+            );
+          } else {
+            db.prepare(`
+              UPDATE users
+              SET email = ?, first_name = ?, last_name = ?, role_id = ?, job_title = ?, is_active = ?, is_responsible = ?, updated_at = ?
+              WHERE id = ?
+            `).run(
+              nextEmail,
+              body?.firstName === undefined ? current.first_name : String(body.firstName || "").trim(),
+              body?.lastName === undefined ? current.last_name : String(body.lastName || "").trim(),
+              body?.roleId === undefined ? current.role_id : role?.id || null,
+              body?.jobTitle === undefined ? current.job_title : String(body.jobTitle || "").trim(),
+              body?.isActive === undefined ? current.is_active : toFlag(body.isActive),
+              body?.isResponsible === undefined ? current.is_responsible : toFlag(body.isResponsible),
+              updatedAt,
+              parts[3],
+            );
+          }
+        } catch (error) {
+          if (String(error?.code || "").includes("CONSTRAINT")) return sendJson(res, 409, { error: "Ya existe una cuenta con ese email" });
+          throw error;
+        }
+        return sendJson(res, 200, { user: getStudioUserById(parts[3]) });
+      }
+    }
+
+    if (parts[0] === "api" && parts[1] === "admin" && parts[2] === "credentials") {
+      if (req.method === "GET" && parts.length === 3) {
+        const credentials = db.prepare("SELECT id, name, credential_type, owner_name, status, expires_on, notes, created_at, updated_at FROM studio_credentials ORDER BY created_at DESC").all();
+        return sendJson(res, 200, { credentials: credentials.map(mapCredential) });
+      }
+      if (req.method === "POST" && parts.length === 3) {
+        const body = await getJson(req);
+        const name = String(body?.name || "").trim();
+        const credentialType = String(body?.credentialType || "").trim();
+        const ownerName = String(body?.ownerName || "").trim();
+        const status = readStudioStatus(body?.status);
+        if (!name || !credentialType || !ownerName) return sendJson(res, 400, { error: "Completá nombre, tipo y titular de la credencial" });
+        if (!status) return sendJson(res, 400, { error: "El estado debe ser Activo, Pendiente, Vencido o Inactivo" });
+        const id = randomUUID();
+        const createdAt = now();
+        db.prepare(`
+          INSERT INTO studio_credentials(id, name, credential_type, owner_name, status, expires_on, notes, created_at, updated_at)
+          VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(id, name, credentialType, ownerName, status, String(body?.expiresOn || "").trim(), String(body?.notes || "").trim(), createdAt, createdAt);
+        return sendJson(res, 201, { credential: mapCredential(db.prepare("SELECT id, name, credential_type, owner_name, status, expires_on, notes, created_at, updated_at FROM studio_credentials WHERE id = ?").get(id)) });
+      }
+      if (req.method === "PUT" && parts[3]) {
+        const current = db.prepare("SELECT id, name, credential_type, owner_name, status, expires_on, notes, created_at, updated_at FROM studio_credentials WHERE id = ?").get(parts[3]);
+        if (!current) return sendJson(res, 404, { error: "Credencial no encontrada" });
+        const body = await getJson(req);
+        const status = body?.status === undefined ? current.status : readStudioStatus(body.status);
+        if (!status) return sendJson(res, 400, { error: "El estado debe ser Activo, Pendiente, Vencido o Inactivo" });
+        db.prepare(`
+          UPDATE studio_credentials
+          SET name = ?, credential_type = ?, owner_name = ?, status = ?, expires_on = ?, notes = ?, updated_at = ?
+          WHERE id = ?
+        `).run(
+          body?.name === undefined ? current.name : String(body.name || "").trim(),
+          body?.credentialType === undefined ? current.credential_type : String(body.credentialType || "").trim(),
+          body?.ownerName === undefined ? current.owner_name : String(body.ownerName || "").trim(),
+          status,
+          body?.expiresOn === undefined ? current.expires_on : String(body.expiresOn || "").trim(),
+          body?.notes === undefined ? current.notes : String(body.notes || "").trim(),
+          now(),
+          parts[3],
+        );
+        return sendJson(res, 200, { credential: mapCredential(db.prepare("SELECT id, name, credential_type, owner_name, status, expires_on, notes, created_at, updated_at FROM studio_credentials WHERE id = ?").get(parts[3])) });
+      }
+    }
+
+    if (parts[0] === "api" && parts[1] === "admin" && parts[2] === "scba-tokens") {
+      if (req.method === "GET" && parts.length === 3) {
+        const scbaTokens = db.prepare("SELECT id, alias, holder_name, status, expires_on, last_checked_at, notes, created_at, updated_at FROM studio_scba_tokens ORDER BY created_at DESC").all();
+        return sendJson(res, 200, { scbaTokens: scbaTokens.map(mapScbaToken) });
+      }
+      if (req.method === "POST" && parts.length === 3) {
+        const body = await getJson(req);
+        const alias = String(body?.alias || "").trim();
+        const holderName = String(body?.holderName || "").trim();
+        const status = readStudioStatus(body?.status);
+        if (!alias || !holderName) return sendJson(res, 400, { error: "Completá alias y titular del token" });
+        if (!status) return sendJson(res, 400, { error: "El estado debe ser Activo, Pendiente, Vencido o Inactivo" });
+        const id = randomUUID();
+        const createdAt = now();
+        db.prepare(`
+          INSERT INTO studio_scba_tokens(id, alias, holder_name, status, expires_on, last_checked_at, notes, created_at, updated_at)
+          VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(
+          id,
+          alias,
+          holderName,
+          status,
+          String(body?.expiresOn || "").trim(),
+          String(body?.lastCheckedAt || "").trim(),
+          String(body?.notes || "").trim(),
+          createdAt,
+          createdAt,
+        );
+        return sendJson(res, 201, { scbaToken: mapScbaToken(db.prepare("SELECT id, alias, holder_name, status, expires_on, last_checked_at, notes, created_at, updated_at FROM studio_scba_tokens WHERE id = ?").get(id)) });
+      }
+      if (req.method === "PUT" && parts[3]) {
+        const current = db.prepare("SELECT id, alias, holder_name, status, expires_on, last_checked_at, notes, created_at, updated_at FROM studio_scba_tokens WHERE id = ?").get(parts[3]);
+        if (!current) return sendJson(res, 404, { error: "Token SCBA no encontrado" });
+        const body = await getJson(req);
+        const status = body?.status === undefined ? current.status : readStudioStatus(body.status);
+        if (!status) return sendJson(res, 400, { error: "El estado debe ser Activo, Pendiente, Vencido o Inactivo" });
+        db.prepare(`
+          UPDATE studio_scba_tokens
+          SET alias = ?, holder_name = ?, status = ?, expires_on = ?, last_checked_at = ?, notes = ?, updated_at = ?
+          WHERE id = ?
+        `).run(
+          body?.alias === undefined ? current.alias : String(body.alias || "").trim(),
+          body?.holderName === undefined ? current.holder_name : String(body.holderName || "").trim(),
+          status,
+          body?.expiresOn === undefined ? current.expires_on : String(body.expiresOn || "").trim(),
+          body?.lastCheckedAt === undefined ? current.last_checked_at : String(body.lastCheckedAt || "").trim(),
+          body?.notes === undefined ? current.notes : String(body.notes || "").trim(),
+          now(),
+          parts[3],
+        );
+        return sendJson(res, 200, { scbaToken: mapScbaToken(db.prepare("SELECT id, alias, holder_name, status, expires_on, last_checked_at, notes, created_at, updated_at FROM studio_scba_tokens WHERE id = ?").get(parts[3])) });
+      }
+    }
 
     if (req.method === "GET" && url.pathname === "/api/backup") {
       const cases = db.prepare("SELECT id, data, created_at, updated_at FROM cases ORDER BY created_at").all().map((row) => ({ id: row.id, data: readJson(row.data), createdAt: row.created_at, updatedAt: row.updated_at }));

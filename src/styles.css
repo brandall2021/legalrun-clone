@@ -93,3 +93,25 @@ select:focus{outline:2px solid #233a5e22;border-color:#233a5e}
 /* F6: tira de tabs sin scrollbar visible (scrollea con rueda/drag/touch) */
 .tabs-row{scrollbar-width:none}
 .tabs-row::-webkit-scrollbar{display:none}
+
+/* FAQ chat */
+.faq-public-shell{min-height:100vh;padding:32px 20px;background:radial-gradient(circle at top left,#e6eeff 0,transparent 30%),#f3f6fb}
+.faq-public-card{width:min(960px,100%);margin:0 auto;padding:24px;background:#fff;border:1px solid var(--border);border-radius:20px;box-shadow:0 24px 70px #24344e14}
+.faq-public-topbar{display:flex;justify-content:space-between;gap:16px;align-items:center;margin-bottom:20px}
+.faq-public-actions{display:flex;gap:10px;flex-wrap:wrap}
+.faq-chat-page{display:grid;gap:18px}
+.faq-chat-header h1{margin:4px 0 8px;font:800 30px "DM Sans",sans-serif;color:#233a5e}
+.faq-chat-header .muted{max-width:650px}
+.faq-chat-thread{display:grid;gap:12px;min-height:280px;padding:18px;border:1px solid var(--border);border-radius:16px;background:linear-gradient(180deg,#f8fbff 0,#fefefe 100%)}
+.faq-chat-bubble{max-width:min(80%,680px);display:grid;gap:6px;padding:14px 16px;border-radius:16px}
+.faq-chat-bubble p{margin:0;color:#243044;line-height:1.5}
+.faq-chat-bubble-assistant{background:#edf4ff;border:1px solid #d6e4ff;justify-self:start}
+.faq-chat-bubble-user{background:#233a5e;color:#fff;justify-self:end}
+.faq-chat-bubble-user p,.faq-chat-bubble-user .faq-chat-role{color:#fff}
+.faq-chat-role{font-size:11px;font-weight:700;color:#5a6b85;text-transform:uppercase;letter-spacing:.04em}
+.faq-chat-status{margin:0;color:#5a6b85;font-size:12px}
+.faq-chat-form{display:grid;gap:12px}
+.faq-chat-form textarea{width:100%;min-height:110px;padding:12px 14px;border:1px solid var(--border);border-radius:12px;background:#fff;resize:vertical;font:inherit;font-size:13px;color:#243044}
+.faq-chat-form textarea:focus{outline:2px solid #233a5e22;border-color:#233a5e}
+.faq-chat-actions{display:flex;justify-content:flex-end}
+@media(max-width:760px){.faq-public-shell{padding:18px 12px}.faq-public-card{padding:16px;border-radius:16px}.faq-public-topbar{flex-direction:column;align-items:flex-start}.faq-chat-header h1{font-size:24px}.faq-chat-bubble{max-width:100%}}

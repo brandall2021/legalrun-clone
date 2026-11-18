@@ -1,8 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
+import type { LocalUser } from "./account/types";
+import { CredentialsPage } from "./admin/CredentialsPage";
+import { RolesPage } from "./admin/RolesPage";
+import { ScbaTokensPage } from "./admin/ScbaTokensPage";
+import { UsersAdminPage } from "./admin/UsersAdminPage";
+import { ProfilePage } from "./account/ProfilePage";
+import { FaqChatPage } from "./faq/FaqChatPage";
+import { buildSemaforoSummary, filterSemaforoItems, toSemaforoBucket, type SemaforoBucket } from "./semaforo";
 
 type CaseField = { key: string; label: string; value: string; select?: boolean; inputType?: string };
 type CaseRecord = { id: string; fields: Record<string, string>; createdAt?: string; updatedAt?: string; followed?: boolean };
-type LocalUser = { id: string; email: string };
 
 const groups: {
   title: string;
@@ -11,11 +18,12 @@ const groups: {
 }[] = [
   {
     title: "",
-    items: [
-      ["Inicio", "⌂", "#/client/home_estudio_juridico"],
-      ["Agenda", "▦", "#/client/agenda"],
-      ["Inbox", "✉", "#/client/inbox"],
-      ["Novedades de juicios", "◷", "#/client/novedades_juicio"],
+      items: [
+        ["Inicio", "⌂", "#/client/home_estudio_juridico"],
+        ["Chat FAQ", "✦", "#/client/faq-chat"],
+        ["Agenda", "▦", "#/client/agenda"],
+        ["Inbox", "✉", "#/client/inbox"],
+        ["Novedades de juicios", "◷", "#/client/novedades_juicio"],
       ["Búsqueda de casos", "⌕", "#/client/searchinf"],
     ],
   },
@@ -29,6 +37,7 @@ const groups: {
           ["Sin Movimientos", "◌", "#/client/dashboard/movimientos"],
           ["Estado Procesal", "◉", "#/client/dashboard/state"],
           ["Impulso Procesal", "↗", "#/client/dashboard/impulse"],
+          ["Semáforo", "◐", "#/client/semaforo"],
         ],
       },
     ],
@@ -82,6 +91,54 @@ const groups: {
     ],
   },
 ];
+
+const accountProfileRoute = "#/client/configuracion/profile";
+const adminConfigurationItems: [string, string, string][] = [
+  ["Usuarios", "⚙", "#/client/configuracion/usersAbogado"],
+  ["Roles", "⚙", "#/client/configuracion/roles"],
+  ["Credenciales", "⚙", "#/client/configuracion/credentials"],
+  ["Token SCBA", "⚙", "#/client/configuracion/scba-tokens"],
+];
+const adminConfigurationRoutes = new Set(adminConfigurationItems.map(([, , href]) => href));
+
+function buildNavigationGroups(isAdmin: boolean) {
+  return groups.map((group) => {
+    if (group.title !== "Configuración") return group;
+    const itemsWithoutAdmin = group.items.filter(([, , href]) => href !== "#/client/configuracion/usersAbogado");
+    const securityIndex = itemsWithoutAdmin.findIndex(([, , href]) => href === "#/client/configuracion/security");
+    const beforeSecurity = securityIndex >= 0 ? itemsWithoutAdmin.slice(0, securityIndex) : itemsWithoutAdmin;
+    const fromSecurity = securityIndex >= 0 ? itemsWithoutAdmin.slice(securityIndex) : [];
+    return {
+      ...group,
+      items: [
+        ["Perfil", "☺", accountProfileRoute],
+        ...beforeSecurity,
+        ...(isAdmin ? adminConfigurationItems : []),
+        ...fromSecurity,
+      ],
+    };
+  });
+}
+
+function displayNameFor(user: LocalUser) {
+  const fullName = `${user.firstName || ""} ${user.lastName || ""}`.trim();
+  return fullName || user.email;
+}
+
+function roleNameFor(user: LocalUser) {
+  return user.roleName || (user.isAdmin ? "Administrador" : "Usuario");
+}
+
+function initialsFor(user: LocalUser) {
+  const letters = `${user.firstName || ""} ${user.lastName || ""}`
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() || "")
+    .join("");
+  return letters || user.email.slice(0, 2).toUpperCase();
+}
 
 const initialFields: CaseField[] = [
   { key: "id", label: "ID", value: "10482" },
@@ -268,7 +325,8 @@ export default function App() {
   const [fields, setFields] = useState(initialFields);
   const [cases, setCases] = useState<CaseRecord[]>([]);
   const [session, setSession] = useState<LocalUser | null>(null);
-  const catalogReloadKey = route.startsWith("#/client/configuracion/") ? route : "outside-config";
+  const renderedRoute = session && !session.isAdmin && adminConfigurationRoutes.has(route) ? accountProfileRoute : route;
+  const catalogReloadKey = renderedRoute.startsWith("#/client/configuracion/") ? renderedRoute : "outside-config";
   const judicialStates = useModuleCatalog("client/configuracion/estado", defaultJudicialStates, Boolean(session), catalogReloadKey);
   const portfolios = useModuleCatalog("client/configuracion/portfolio", defaultPortfolios, Boolean(session), catalogReloadKey);
   const jurisdictions = useModuleCatalog("client/configuracion/jurisdicciones-organismos", defaultJurisdictions, Boolean(session), catalogReloadKey);
@@ -283,8 +341,10 @@ export default function App() {
   const [toast, setToast] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   const [topPortfolio, setTopPortfolio] = useState("");
+  const isPublicFaqRoute = route === "#/faq";
   const isAuthPage = route.startsWith("#/auth/") || route === "#/";
-  const detailId = route.includes("/searchinf/detail/") ? route.split("/").pop() || "demo-10482" : null;
+  const visibleGroups = useMemo(() => buildNavigationGroups(Boolean(session?.isAdmin)), [session?.isAdmin]);
+  const detailId = renderedRoute.includes("/searchinf/detail/") ? renderedRoute.split("/").pop() || "demo-10482" : null;
   const currentState = fields.find((field) => field.key === "state")?.value;
   const stateChoices = [...new Set([...judicialStates, ...(currentState ? [currentState] : [])])];
   const currentSubstate = fields.find((field) => field.key === "substate")?.value;
@@ -325,11 +385,16 @@ export default function App() {
 
   useEffect(() => {
     if (!sessionReady) return;
-    if (!session && !isAuthPage) {
+    if (!session && !isAuthPage && !isPublicFaqRoute) {
       window.location.hash = "#/auth/login";
       setRoute("#/auth/login");
     }
-  }, [sessionReady, session, isAuthPage]);
+  }, [sessionReady, session, isAuthPage, isPublicFaqRoute]);
+
+  useEffect(() => {
+    if (!session || session.isAdmin || !adminConfigurationRoutes.has(route)) return;
+    navigate(accountProfileRoute);
+  }, [route, session]);
 
   useEffect(() => {
     if (!session) return;
@@ -355,13 +420,13 @@ export default function App() {
     if (topPortfolio && !portfolios.includes(topPortfolio)) setTopPortfolio("");
   }, [topPortfolio, portfolios]);
 
-  const isDetail = route.includes("/searchinf/detail/");
+  const isDetail = renderedRoute.includes("/searchinf/detail/");
   const pageTitle = useMemo(() => {
     if (isDetail) return "Búsqueda de casos";
-    const item = groups.flatMap((g) => g.items).find(([, , href]) => href === route);
+    const item = visibleGroups.flatMap((group) => [...(group.subgroups?.flatMap((subgroup) => subgroup.items) || []), ...group.items]).find(([, , href]) => href === renderedRoute);
     if (item) return item[0];
-    return route === "#/client/home_estudio_juridico" ? "Inicio" : "Búsqueda de casos";
-  }, [isDetail, route]);
+    return renderedRoute === "#/client/home_estudio_juridico" ? "Inicio" : "Búsqueda de casos";
+  }, [isDetail, renderedRoute, visibleGroups]);
 
   function navigate(href: string) {
     window.location.hash = href;
@@ -512,6 +577,28 @@ export default function App() {
     navigate("#/auth/login");
   }
 
+  if (isPublicFaqRoute) {
+    return (
+      <main className="faq-public-shell">
+        <div className="faq-public-card">
+          <div className="faq-public-topbar">
+            <div className="login-brand">
+              <div className="brand-mark">LR</div>
+              <div><strong>LegalRun</strong><span>Asistente FAQ</span></div>
+            </div>
+            <div className="faq-public-actions">
+              {session ? <button className="secondary-button" onClick={() => navigate("#/client/home_estudio_juridico")}>Volver al sistema</button> : null}
+              <button className="primary-button" onClick={() => navigate(session ? "#/client/home_estudio_juridico" : "#/auth/login")}>
+                {session ? "Ir al inicio" : "Ingresar"}
+              </button>
+            </div>
+          </div>
+          <FaqChatPage />
+        </div>
+      </main>
+    );
+  }
+
   if (isAuthPage) {
     const mode = route === "#/auth/register" ? "register" : route === "#/auth/forgot" ? "forgot" : "login";
     return <AuthPage mode={mode} navigate={navigate} onAuthenticated={(user) => setSession(user)} />;
@@ -529,7 +616,7 @@ export default function App() {
         </div>
         <div className="workspace"><span className="workspace-dot" /> Estudio jurídico <span className="chevron">⌄</span></div>
         <div className="sidebar-scroll">
-          {groups.map((group) => (
+          {visibleGroups.map((group) => (
             <div className="nav-group" key={group.title || "principal"}>
               {group.title ? <p className="nav-heading">{group.title}</p> : null}
               {group.subgroups?.map((subgroup) => (
@@ -538,7 +625,7 @@ export default function App() {
                   {subgroup.items.map(([label, icon, href]) => (
                     <button
                       key={`${label}-${href}`}
-                      className={`nav-item nav-subitem ${route === href || (isDetail && href === "#/client/searchinf") ? "nav-active" : ""}`}
+                      className={`nav-item nav-subitem ${renderedRoute === href || (isDetail && href === "#/client/searchinf") ? "nav-active" : ""}`}
                       onClick={() => navigate(href)}
                     >
                       <span className="nav-icon">{icon}</span><span>{label}</span>
@@ -554,7 +641,7 @@ export default function App() {
                 ) : (
                   <button
                     key={`${label}-${href}`}
-                    className={`nav-item ${route === href || (isDetail && href === "#/client/searchinf") ? "nav-active" : ""}`}
+                    className={`nav-item ${renderedRoute === href || (isDetail && href === "#/client/searchinf") ? "nav-active" : ""}`}
                     onClick={() => navigate(href)}
                   >
                     <span className="nav-icon">{icon}</span><span>{label}</span>
@@ -564,7 +651,7 @@ export default function App() {
             </div>
           ))}
         </div>
-        <div className="sidebar-footer"><div className="avatar">{session.email.slice(0, 2).toUpperCase()}</div><div><strong>{session.email}</strong><span>Cuenta local</span></div><button className="more logout-button" onClick={logout} aria-label="Cerrar sesión">↪</button></div>
+        <div className="sidebar-footer"><div className="avatar">{initialsFor(session)}</div><div><strong>{displayNameFor(session)}</strong><span>{roleNameFor(session)}</span></div><button className="more logout-button" onClick={logout} aria-label="Cerrar sesión">↪</button></div>
       </aside>
 
       {menuOpen && <button className="scrim" onClick={() => setMenuOpen(false)} aria-label="Cerrar menú" />}
@@ -575,7 +662,7 @@ export default function App() {
           <div className="top-brand"><div className="brand-mark small">LR</div></div>
           <button className="text-button help-button" onClick={() => notify("Ayuda local: cada módulo guarda su información en SQLite.")}>ⓘ Ayuda</button>
           <span className="top-sep" />
-          <button className="ai-button" onClick={() => notify("Asistente IA")}><span>✦</span> Asistente IA</button>
+          <button className="ai-button" onClick={() => navigate("#/client/faq-chat")}><span>✦</span> Asistente IA</button>
           <span className="top-sep" />
           <div className="portfolio-picker">
             <span>Portfolio</span>
@@ -587,11 +674,11 @@ export default function App() {
           <div className="top-spacer" />
           <div className="session-meta">
             <span>Cliente:</span><strong>Estudio local</strong>
-            <span>Usuario:</span><strong>{session.email}</strong>
-            <span>Rol:</span><strong>Administrador</strong>
+            <span>Usuario:</span><strong>{displayNameFor(session)}</strong>
+            <span>Rol:</span><strong>{roleNameFor(session)}</strong>
           </div>
           <button className="icon-button notification" aria-label="Notificaciones">♧<i /></button>
-          <button className="profile-button" onClick={logout}><span className="avatar small">{session.email.slice(0, 2).toUpperCase()}</span><span>{session.email}</span><span>Salir</span></button>
+          <button className="profile-button" onClick={logout}><span className="avatar small">{initialsFor(session)}</span><span>{displayNameFor(session)}</span><span>Salir</span></button>
         </header>
 
         <div className="page-content">
@@ -636,52 +723,66 @@ export default function App() {
                 </div>
               ) : <CaseEntriesTab key={`${detailId}-${activeTab}`} tab={activeTab} caseId={detailId || "demo-10482"} onSaved={report} />}
             </>
-          ) : route === "#/client/home_estudio_juridico" ? (
+          ) : renderedRoute === "#/client/faq-chat" ? (
+            <FaqChatPage />
+          ) : renderedRoute === "#/client/home_estudio_juridico" ? (
             <HomePage navigate={navigate} cases={cases} portfolioFilter={topPortfolio} />
-          ) : route === "#/client/agenda" ? (
+          ) : renderedRoute === "#/client/agenda" ? (
             <AgendaPage cases={cases} openCase={(id) => navigate(`#/client/searchinf/detail/${id}`)} onSaved={report} globalPortfolio={topPortfolio} />
-          ) : route === "#/client/inbox" ? (
+          ) : renderedRoute === "#/client/inbox" ? (
             <InboxPage cases={cases} openCase={(id) => navigate(`#/client/searchinf/detail/${id}`)} onSaved={report} globalPortfolio={topPortfolio} />
-          ) : route === "#/client/novedades_juicio" ? (
+          ) : renderedRoute === "#/client/novedades_juicio" ? (
             <MovementsPage cases={cases} openCase={(id) => navigate(`#/client/searchinf/detail/${id}`)} onSaved={report} globalPortfolio={topPortfolio} />
-          ) : route === "#/client/document_state" ? (
+          ) : renderedRoute === "#/client/document_state" ? (
             <DocumentStatusPage cases={cases} openCase={(id) => navigate(`#/client/searchinf/detail/${id}`)} onSaved={report} globalPortfolio={topPortfolio} />
-          ) : route === "#/client/history" ? (
+          ) : renderedRoute === "#/client/history" ? (
             <MaintenanceHistoryPage openCase={(id) => navigate(`#/client/searchinf/detail/${id}`)} />
-          ) : route === "#/client/nuevos_juicios" ? (
+          ) : renderedRoute === "#/client/nuevos_juicios" ? (
             <NewCaseIntakePage cases={cases} states={judicialStates.length ? judicialStates : defaultJudicialStates} substatesByState={substateCatalog} onCreated={(created) => setCases((current) => [created, ...current])} openCase={(id) => navigate(`#/client/searchinf/detail/${id}`)} onSaved={report} />
-          ) : route === "#/client/configuracion/security" ? (
+          ) : renderedRoute === accountProfileRoute ? (
+            <ProfilePage session={session} onSessionUpdated={(user) => setSession(user)} onSaved={report} />
+          ) : renderedRoute === "#/client/configuracion/usersAbogado" ? (
+            <UsersAdminPage onSaved={report} />
+          ) : renderedRoute === "#/client/configuracion/roles" ? (
+            <RolesPage onSaved={report} />
+          ) : renderedRoute === "#/client/configuracion/credentials" ? (
+            <CredentialsPage onSaved={report} />
+          ) : renderedRoute === "#/client/configuracion/scba-tokens" ? (
+            <ScbaTokensPage onSaved={report} />
+          ) : renderedRoute === "#/client/configuracion/security" ? (
             <PasswordSettingsPage onSaved={report} />
-          ) : route === "#/client/configuracion/backup" ? (
+          ) : renderedRoute === "#/client/configuracion/backup" ? (
             <BackupPage onSaved={report} onRestored={refreshCases} />
-          ) : route === "#/client/searchinf" ? (
+          ) : renderedRoute === "#/client/searchinf" ? (
             <SearchPage search={search} setSearch={setSearch} cases={cases} customFields={customFields} openCase={(id) => navigate(`#/client/searchinf/detail/${id}`)} onCreate={() => navigate("#/client/administration")} globalPortfolio={topPortfolio} />
-          ) : route === "#/client/followed" ? (
+          ) : renderedRoute === "#/client/followed" ? (
             <FollowedCasesPage cases={cases} onCaseUpdated={(updated) => setCases((current) => current.map((item) => item.id === updated.id ? updated : item))} openCase={(id) => navigate(`#/client/searchinf/detail/${id}`)} globalPortfolio={topPortfolio} />
-          ) : route === "#/client/administration" ? (
+          ) : renderedRoute === "#/client/administration" ? (
             <CreateCasePage states={judicialStates.length ? judicialStates : defaultJudicialStates} portfolios={portfolios} jurisdictions={jurisdictions} substatesByState={substateCatalog} responsibles={responsibleOptions} customFields={customFields} onCreate={createCase} onCancel={() => navigate("#/client/searchinf")} onImportCases={() => navigate("#/client/cases/import")} onCreatePortfolio={() => navigate("#/client/configuracion/portfolio")} />
-          ) : route === "#/client/cases/import" ? (
+          ) : renderedRoute === "#/client/cases/import" ? (
             <ImportCasesPage defaultState={judicialStates[0] || "En trámite"} customFields={customFields} onImport={importCases} onCancel={() => navigate("#/client/searchinf")} />
-          ) : route === "#/client/admmassive" ? (
+          ) : renderedRoute === "#/client/admmassive" ? (
             <BulkUpdatePage customFields={customFields} onUpdate={bulkUpdateCases} onCancel={() => navigate("#/client/searchinf")} />
-          ) : route === "#/client/bajajuicio" ? (
+          ) : renderedRoute === "#/client/bajajuicio" ? (
             <CaseDeactivationPage cases={cases} openCase={(id) => navigate(`#/client/searchinf/detail/${id}`)} onSaved={report} />
-          ) : route === "#/admin/report" ? (
+          ) : renderedRoute === "#/admin/report" ? (
             <ReportsPage cases={cases} customFields={customFields} onSaved={report} />
-          ) : route === "#/admin/mis_reportes" ? (
+          ) : renderedRoute === "#/admin/mis_reportes" ? (
             <SavedReportsPage onSaved={report} />
-          ) : route === "#/client/dashboard/state" ? (
+          ) : renderedRoute === "#/client/dashboard/state" ? (
             <StateDashboardPage cases={cases} globalPortfolio={topPortfolio} />
-          ) : route === "#/client/dashboard/stock" ? (
+          ) : renderedRoute === "#/client/dashboard/stock" ? (
             <StockDashboardPage navigate={navigate} />
-          ) : route === "#/client/dashboard/finance" ? (
+          ) : renderedRoute === "#/client/dashboard/finance" ? (
             <FinanceDashboardPage cases={cases} openCase={(id) => navigate(`#/client/searchinf/detail/${id}`)} onSaved={report} globalPortfolio={topPortfolio} />
-          ) : route === "#/client/dashboard/movimientos" ? (
+          ) : renderedRoute === "#/client/dashboard/movimientos" ? (
             <ActivityDashboardPage cases={cases} kind="movimientos" openCase={(id) => navigate(`#/client/searchinf/detail/${id}`)} globalPortfolio={topPortfolio} />
-          ) : route === "#/client/dashboard/impulse" ? (
+          ) : renderedRoute === "#/client/dashboard/impulse" ? (
             <ActivityDashboardPage cases={cases} kind="impulse" openCase={(id) => navigate(`#/client/searchinf/detail/${id}`)} globalPortfolio={topPortfolio} />
+          ) : renderedRoute === "#/client/semaforo" ? (
+            <SemaforoPage cases={cases} openCase={(id) => navigate(`#/client/searchinf/detail/${id}`)} globalPortfolio={topPortfolio} />
           ) : (
-            <ModulePage key={route} route={route} title={pageTitle} onSaved={report} />
+            <ModulePage key={renderedRoute} route={renderedRoute} title={pageTitle} onSaved={report} />
           )}
         </div>
       </main>
@@ -2130,6 +2231,91 @@ function StateDashboardPage({ cases, globalPortfolio }: { cases: CaseRecord[]; g
 }
 
 type ActivityItem = { id: string; number: string; title: string; state: string; jurisdiction: string; amount: string; lastMovement: string; lastMovementDate: string; daysWithoutMovement: number | null; priority: string };
+
+function SemaforoPage({ cases, openCase, globalPortfolio }: { cases: CaseRecord[]; openCase: (id: string) => void; globalPortfolio: string }) {
+  const [items, setItems] = useState<ActivityItem[]>([]);
+  const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [filters, setFilters] = useState<{ jurisdiction: string; state: string; minAmount: string } | null>(null);
+  const [bucket, setBucket] = useState<"all" | SemaforoBucket>("all");
+  const casePortfolioById = new Map(cases.map((item) => [item.id, item.fields.portfolio || ""]));
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/dashboards/activity", { cache: "no-store" })
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "No se pudo cargar el tablero");
+        if (!cancelled) setItems(data.items || []);
+      })
+      .catch((cause) => { if (!cancelled) setError(cause instanceof Error ? cause.message : "Error al cargar el tablero"); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
+
+  const portfolioItems = items.filter((item) => !globalPortfolio || casePortfolioById.get(item.id) === globalPortfolio);
+  const summary = buildSemaforoSummary(portfolioItems);
+  const states = [...new Set(portfolioItems.map((item) => item.state).filter(Boolean))].sort();
+  const jurisdictions = [...new Set(portfolioItems.map((item) => item.jurisdiction).filter(Boolean))].sort();
+  const filtered = filterSemaforoItems(portfolioItems, {
+    bucket,
+    search,
+    state: filters?.state || "",
+    jurisdiction: filters?.jurisdiction || "",
+    minAmount: filters?.minAmount || "",
+  });
+  const sorted = filtered.slice().sort((a, b) => (b.daysWithoutMovement ?? Number.MAX_SAFE_INTEGER) - (a.daysWithoutMovement ?? Number.MAX_SAFE_INTEGER));
+  const bucketTabs: { label: string; value: "all" | SemaforoBucket }[] = [
+    { label: "Todos", value: "all" },
+    { label: "Sin movimientos", value: "sin-movimientos" },
+    { label: "Alta", value: "alta" },
+    { label: "Media", value: "media" },
+    { label: "Baja", value: "baja" },
+  ];
+  const cards = [
+    { label: "Sin movimientos", value: summary.sinMovimientos },
+    { label: "Alta", value: summary.alta },
+    { label: "Media", value: summary.media },
+    { label: "Baja", value: summary.baja },
+  ];
+
+  function semaforoLabel(item: ActivityItem) {
+    const itemBucket = toSemaforoBucket(item);
+    return itemBucket === "sin-movimientos" ? "Sin movimientos" : item.priority || "Baja";
+  }
+
+  function semaforoTag(item: ActivityItem) {
+    const itemBucket = toSemaforoBucket(item);
+    if (itemBucket === "sin-movimientos" || itemBucket === "alta") return "red";
+    if (itemBucket === "media") return "yellow";
+    return "green";
+  }
+
+  function exportCsv() {
+    const rows = [["Expediente", "Carátula", "Semáforo", "Estado judicial", "Jurisdicción", "Último movimiento", "Fecha", "Días sin movimiento", "Monto"], ...sorted.map((item) => [item.number, item.title, semaforoLabel(item), item.state, item.jurisdiction, item.lastMovement, item.lastMovementDate, item.daysWithoutMovement === null ? "" : String(item.daysWithoutMovement), item.amount])];
+    const csv = rows.map((row) => row.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(",")).join("\n");
+    const url = URL.createObjectURL(new Blob([sanitizeCsv(csv)], { type: "text/csv;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "semaforo-local.csv";
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  return <>
+    <div className="page-title-row"><div><p className="eyebrow">REPORTES / DASHBOARDS</p><h1>Semáforo</h1><p className="muted">Priorización visual calculada sobre la actividad local{globalPortfolio ? ` · portfolio ${globalPortfolio}` : ""}.</p></div><button className="secondary-button" onClick={exportCsv}>Exportar CSV</button></div>
+    <DashboardFilters showJurisdictions showEstados states={states} jurisdictions={jurisdictions} onApply={setFilters} />
+    <div className="stats-grid">{cards.map((card) => <div className="stat-card" key={card.label}><span>{card.label}</span><strong>{card.value}</strong><small>{summary.total} casos monitoreados</small></div>)}</div>
+    <section className="panel table-panel">
+      <div className="panel-heading"><div><h3>{sorted.length} casos</h3><p>Resumen del tablero Semáforo filtrado desde movimientos locales.</p></div></div>
+      <div className="tabs-row" role="tablist" aria-label="Buckets del semáforo">{bucketTabs.map((item) => <button key={item.value} role="tab" aria-selected={bucket === item.value} className={bucket === item.value ? "tab active-tab" : "tab"} onClick={() => setBucket(item.value)}>{item.label}</button>)}</div>
+      <div className="search-toolbar"><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar expediente, carátula o movimiento..." /><button className="secondary-button" onClick={() => setSearch("")}>Limpiar</button><span className="muted">{summary.total} monitoreados · {sorted.length} visibles</span></div>
+      {error && <div className="inline-error" role="alert">{error}</div>}
+      {loading ? <div className="empty-table">Calculando desde movimientos locales…</div> : sorted.length ? <div className="table-wrap"><table><thead><tr><th>Expediente</th><th>Carátula</th><th>Semáforo</th><th>Estado judicial</th><th>Jurisdicción</th><th>Último movimiento</th><th>Fecha</th><th>Días</th><th>Monto</th><th></th></tr></thead><tbody>{sorted.map((item) => <tr key={item.id}><td>{item.number}</td><td>{item.title}</td><td><span className={`tag ${semaforoTag(item)}`}>{semaforoLabel(item)}</span></td><td>{item.state}</td><td>{item.jurisdiction}</td><td>{item.lastMovement}</td><td>{item.lastMovementDate}</td><td>{item.daysWithoutMovement ?? "—"}</td><td>{item.amount}</td><td><button className="text-button" onClick={() => openCase(item.id)}>Abrir →</button></td></tr>)}</tbody></table></div> : <div className="empty-table">No hay casos que coincidan con este tablero.</div>}
+    </section>
+  </>;
+}
 
 function ActivityDashboardPage({ cases, kind, openCase, globalPortfolio }: { cases: CaseRecord[]; kind: "movimientos" | "impulse"; openCase: (id: string) => void; globalPortfolio: string }) {
   const [items, setItems] = useState<ActivityItem[]>([]);
