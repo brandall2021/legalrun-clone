@@ -1411,6 +1411,7 @@ const server = createServer(async (req, res) => {
           description: String(data.description || ""),
           user: String(data.user || "Cuenta local"),
           status: String(data.state || "Nuevo"),
+          tags: Array.isArray(data.tags) ? data.tags.map((tag) => String(tag)).filter(Boolean).slice(0, 10) : [],
           createdAt: row.created_at,
         };
       });

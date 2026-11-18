@@ -8,6 +8,7 @@ import { ProfilePage } from "./account/ProfilePage";
 import { FaqChatPage } from "./faq/FaqChatPage";
 import { buildSemaforoSummary, filterSemaforoItems, toSemaforoBucket, type SemaforoBucket } from "./semaforo";
 import { TemplatesPage } from "./templates/TemplatesPage";
+import { detectTags, suggestionForTags } from "./assistant/tagging";
 
 type CaseField = { key: string; label: string; value: string; select?: boolean; inputType?: string };
 type CaseRecord = { id: string; fields: Record<string, string>; createdAt?: string; updatedAt?: string; followed?: boolean };
@@ -1779,7 +1780,7 @@ function InboxPage({ cases, openCase, onSaved, globalPortfolio }: { cases: CaseR
   return <><div className="page-title-row"><div><p className="eyebrow">TRABAJO DIARIO</p><h1>Inbox</h1><p className="muted">Mensajes y tareas recibidos guardados en SQLite local{globalPortfolio ? ` · filtrado por ${globalPortfolio}` : ""}.</p></div><div className="title-actions"><button className="secondary-button" onClick={exportCsv}>Exportar CSV</button><button className="primary-button" onClick={() => { resetForm(); setShowForm(true); }}>＋ Nuevo mensaje</button></div></div><div className="inbox-banner"><span>{unread} mensajes nuevos</span><span>Los mensajes se almacenan solo en esta réplica local.</span></div>{error && <div className="inline-error" role="alert">{error}</div>}{showForm && <section className="panel agenda-form-panel"><div className="panel-heading"><div><h3>{editingId ? "Editar mensaje" : "Nuevo mensaje"}</h3><p>Registra un mensaje o tarea recibida.</p></div></div><form className="agenda-form" onSubmit={(event) => void save(event)}><label className="field"><span>Fecha</span><input type="date" required value={date} onChange={(event) => setDate(event.target.value)} /></label><label className="field"><span>Asunto</span><input required value={subject} onChange={(event) => setSubject(event.target.value)} /></label><label className="field"><span>Remitente</span><input required value={sender} onChange={(event) => setSender(event.target.value)} /></label><label className="field"><span>Expediente asociado</span><select value={caseId} onChange={(event) => setCaseId(event.target.value)}><option value="">Sin expediente asociado</option>{cases.filter((item) => !globalPortfolio || item.fields.portfolio === globalPortfolio).map((item) => <option key={item.id} value={item.id}>{item.fields.number || item.id} · {item.fields.title || "Caso local"}</option>)}</select></label><label className="field"><span>Estado</span><select value={status} onChange={(event) => setStatus(event.target.value)}><option>Nuevo</option><option>Leído</option><option>Respondido</option><option>Archivado</option></select></label><label className="field agenda-detail"><span>Mensaje / detalle</span><textarea rows={3} value={message} onChange={(event) => setMessage(event.target.value)} /></label><div className="modal-actions"><button type="button" className="secondary-button" onClick={() => { resetForm(); setShowForm(false); }}>Cancelar</button><button className="primary-button" type="submit" disabled={busy}>{busy ? "Guardando…" : editingId ? "Guardar cambios" : "Guardar mensaje"}</button></div></form></section>}<section className="panel table-panel report-results"><div className="search-toolbar"><input value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Buscar asunto, remitente o expediente..."/><button className="secondary-button" onClick={() => setFilter("")}>Limpiar</button><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="all">Todos los estados</option><option>Nuevo</option><option>Leído</option><option>Respondido</option><option>Archivado</option></select><span className="muted">{filtered.length} mensajes</span></div>{loading ? <div className="empty-table">Cargando Inbox…</div> : filtered.length ? <div className="table-wrap"><table><thead><tr><th>Fecha</th><th>Asunto</th><th>Remitente</th><th>Expediente</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>{filtered.map((item) => <tr key={item.id}><td>{item.values[0] || "—"}</td><td title={item.message}>{item.values[1] || "—"}</td><td>{item.values[2] || "—"}</td><td>{item.caseId ? <button className="text-button" onClick={() => openCase(item.caseId!)}>{item.values[3] || "Abrir"}</button> : item.values[3] || "—"}</td><td><select aria-label="Estado del mensaje" value={item.values[4] || "Nuevo"} onChange={(event) => void changeStatus(item, event.target.value)}><option>Nuevo</option><option>Leído</option><option>Respondido</option><option>Archivado</option></select></td><td><button className="text-button" onClick={() => edit(item)}>Editar</button><button className="text-button danger-text" onClick={() => void remove(item.id)}>Eliminar</button></td></tr>)}</tbody></table></div> : <div className="empty-table">No hay mensajes en este filtro.</div>}</section></>;
 }
 
-type MovementItem = { id: string; caseId: string; caseNumber: string; caseTitle: string; court: string; date: string; title: string; description: string; user: string; status: string; createdAt: string };
+type MovementItem = { id: string; caseId: string; caseNumber: string; caseTitle: string; court: string; date: string; title: string; description: string; user: string; status: string; tags?: string[]; createdAt: string };
 
 function MovementsPage({ cases, openCase, onSaved, globalPortfolio }: { cases: CaseRecord[]; openCase: (id: string) => void; onSaved: (message: string) => void; globalPortfolio: string }) {
   const [items, setItems] = useState<MovementItem[]>([]);
@@ -1794,6 +1795,7 @@ function MovementsPage({ cases, openCase, onSaved, globalPortfolio }: { cases: C
   const [description, setDescription] = useState("");
   const [busy, setBusy] = useState(false);
   const [refresh, setRefresh] = useState(0);
+  const [taggingId, setTaggingId] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -1817,7 +1819,7 @@ function MovementsPage({ cases, openCase, onSaved, globalPortfolio }: { cases: C
     try {
       const response = await fetch(`/api/cases/${encodeURIComponent(caseId)}/entries/movements`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ date, title: title.trim(), description: description.trim(), user: "Cuenta local", state: "Nuevo" }),
+        body: JSON.stringify({ date, title: title.trim(), description: description.trim(), user: "Cuenta local", state: "Nuevo", tags: detectTags(`${title} ${description}`).map((item) => item.label) }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "No se pudo registrar el movimiento");
@@ -1835,9 +1837,27 @@ function MovementsPage({ cases, openCase, onSaved, globalPortfolio }: { cases: C
     setItems((current) => current.map((entry) => entry.id === item.id ? { ...entry, status: data.state || status } : entry));
     onSaved("Estado de novedad actualizado");
   }
-  const filtered = items.filter((item) => (!globalPortfolio || (cases.find((entry) => entry.id === item.caseId)?.fields.portfolio || "") === globalPortfolio) && (statusFilter === "all" || item.status === statusFilter) && `${item.caseNumber} ${item.caseTitle} ${item.title} ${item.description} ${item.court} ${item.user}`.toLowerCase().includes(filter.toLowerCase()));
+  async function suggestTags(item: MovementItem) {
+    const tags = detectTags(`${item.title} ${item.description}`).map((entry) => entry.label);
+    if (!tags.length) return setError("No se detectaron etiquetas locales para este movimiento.");
+    setTaggingId(item.id);
+    try {
+      const response = await fetch(`/api/cases/${encodeURIComponent(item.caseId)}/entries/movements/${encodeURIComponent(item.id)}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tags }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "No se pudieron guardar las etiquetas");
+      setItems((current) => current.map((entry) => entry.id === item.id ? { ...entry, tags: data.tags || tags } : entry));
+      setError("");
+      onSaved("Etiquetas locales guardadas en el movimiento");
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Error al guardar etiquetas"); }
+    finally { setTaggingId(""); }
+  }
+  const detectedTags = detectTags(`${title} ${description}`);
+  const detectedSuggestion = suggestionForTags(detectedTags.map((entry) => entry.label));
+  const filtered = items.filter((item) => (!globalPortfolio || (cases.find((entry) => entry.id === item.caseId)?.fields.portfolio || "") === globalPortfolio) && (statusFilter === "all" || item.status === statusFilter) && `${item.caseNumber} ${item.caseTitle} ${item.title} ${item.description} ${item.court} ${item.user} ${(item.tags || []).join(" ")}`.toLowerCase().includes(filter.toLowerCase()));
   function exportCsv() {
-    const rows = [["Fecha", "Expediente", "Carátula", "Movimiento", "Descripción", "Juzgado", "Usuario", "Estado"], ...filtered.map((item) => [item.date, item.caseNumber, item.caseTitle, item.title, item.description, item.court, item.user, item.status])];
+    const rows = [["Fecha", "Expediente", "Carátula", "Movimiento", "Descripción", "Juzgado", "Usuario", "Estado", "Etiquetas"], ...filtered.map((item) => [item.date, item.caseNumber, item.caseTitle, item.title, item.description, item.court, item.user, item.status, (item.tags || []).join("; ")])];
     const csv = rows.map((row) => row.map((value) => `"${String(value || "").replaceAll('"', '""')}"`).join(",")).join("\n");
     const url = URL.createObjectURL(new Blob([sanitizeCsv(csv)], { type: "text/csv;charset=utf-8" }));
     const link = document.createElement("a"); link.href = url; link.download = "novedades-juicios-local.csv"; link.click(); URL.revokeObjectURL(url);
@@ -1848,7 +1868,7 @@ function MovementsPage({ cases, openCase, onSaved, globalPortfolio }: { cases: C
   return <>
     <div className="page-title-row"><div><p className="eyebrow">TRABAJO DIARIO</p><h1>Novedades de juicios</h1><p className="muted">Movimientos consolidados desde los expedientes locales{globalPortfolio ? ` · filtrado por ${globalPortfolio}` : ""}.</p></div><div className="title-actions"><button className="secondary-button" onClick={exportCsv}>Exportar CSV</button><button className="primary-button" onClick={() => { resetForm(); setShowForm(true); }}>＋ Registrar movimiento</button></div></div>
     {error && <div className="inline-error" role="alert">{error}</div>}
-    {showForm && <section className="panel agenda-form-panel"><div className="panel-heading"><div><h3>Nuevo movimiento judicial</h3><p>Se guardará en la pestaña Novedades del caso seleccionado.</p></div></div><form className="agenda-form" onSubmit={(event) => void save(event)}><label className="field"><span>Expediente</span><select required value={caseId} onChange={(event) => setCaseId(event.target.value)}><option value="">Seleccionar expediente</option>{cases.filter((item) => !globalPortfolio || item.fields.portfolio === globalPortfolio).map((item) => <option key={item.id} value={item.id}>{item.fields.number || item.id} · {item.fields.title || "Caso local"}</option>)}</select></label><label className="field"><span>Fecha</span><input type="date" required value={date} onChange={(event) => setDate(event.target.value)} /></label><label className="field"><span>Movimiento</span><input required value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Ej. Presentación ingresada" /></label><label className="field agenda-detail"><span>Descripción</span><textarea rows={3} value={description} onChange={(event) => setDescription(event.target.value)} /></label><div className="modal-actions"><button type="button" className="secondary-button" onClick={() => { resetForm(); setShowForm(false); }}>Cancelar</button><button type="submit" className="primary-button" disabled={busy}>{busy ? "Guardando…" : "Guardar movimiento"}</button></div></form></section>}
+    {showForm && <section className="panel agenda-form-panel"><div className="panel-heading"><div><h3>Nuevo movimiento judicial</h3><p>Se guardará en la pestaña Novedades del caso seleccionado.</p></div></div><form className="agenda-form" onSubmit={(event) => void save(event)}><label className="field"><span>Expediente</span><select required value={caseId} onChange={(event) => setCaseId(event.target.value)}><option value="">Seleccionar expediente</option>{cases.filter((item) => !globalPortfolio || item.fields.portfolio === globalPortfolio).map((item) => <option key={item.id} value={item.id}>{item.fields.number || item.id} · {item.fields.title || "Caso local"}</option>)}</select></label><label className="field"><span>Fecha</span><input type="date" required value={date} onChange={(event) => setDate(event.target.value)} /></label><label className="field"><span>Movimiento</span><input required value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Ej. Presentación ingresada" /></label><label className="field agenda-detail"><span>Descripción</span><textarea rows={3} value={description} onChange={(event) => setDescription(event.target.value)} /></label>{detectedTags.length ? <div className="tag-suggestions"><span className="muted">Etiquetas detectadas: {detectedTags.map((entry) => entry.label).join(", ")}</span>{detectedSuggestion ? <span className="muted">Sugerencia local: estado «{detectedSuggestion.state}» · template «{detectedSuggestion.template}»</span> : null}</div> : null}<div className="modal-actions"><button type="button" className="secondary-button" onClick={() => { resetForm(); setShowForm(false); }}>Cancelar</button><button type="submit" className="primary-button" disabled={busy}>{busy ? "Guardando…" : "Guardar movimiento"}</button></div></form></section>}
     <section className="tabs-row" role="tablist" aria-label="Tipos de novedades">
       {tabsRow.map((tabName) => <button key={tabName} role="tab" aria-selected={tab === tabName} className={tab === tabName ? "tab active-tab" : "tab"} onClick={() => setTab(tabName)}>{tabName}</button>)}
     </section>
@@ -1879,7 +1899,7 @@ function MovementsPage({ cases, openCase, onSaved, globalPortfolio }: { cases: C
               <td>{item.caseTitle}</td>
               <td>{item.title}</td>
               <td>{item.date}</td>
-              <td><span className="tag">—</span></td>
+              <td>{item.tags?.length ? item.tags.map((tag) => <span className="tag blue" key={tag}>{tag}</span>) : <button className="text-button" disabled={taggingId === item.id} onClick={() => void suggestTags(item)}>{taggingId === item.id ? "Analizando…" : "Sugerir etiqueta"}</button>}</td>
               <td><select aria-label="Estado de novedad" value={item.status} onChange={(event) => void changeStatus(item, event.target.value)}><option>Nuevo</option><option>Pendiente</option><option>Revisado</option></select></td>
               <td>—</td>
               <td><button className="text-button" onClick={() => openCase(item.caseId)}>Abrir caso</button></td>

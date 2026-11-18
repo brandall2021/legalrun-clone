@@ -148,6 +148,15 @@ try {
     body: JSON.stringify({ state: "Revisado" }),
   });
   if (!movementReview.response.ok || movementReview.data.state !== "Revisado") throw new Error("movement review state update failed");
+  const movementTags = await request(`/api/cases/${caseId}/entries/movements/${movement.data.id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ tags: ["Traslado", "Prueba"] }),
+  });
+  if (!movementTags.response.ok || movementTags.data.tags?.join(",") !== "Traslado,Prueba") throw new Error("movement tag update failed");
+  const taggedFeed = await request("/api/dashboards/movements");
+  const taggedItem = taggedFeed.data.items?.find((item) => item.id === movement.data.id);
+  if (!taggedFeed.response.ok || taggedItem?.tags?.join(",") !== "Traslado,Prueba") throw new Error("movement tags should appear in the consolidated feed");
   const dashboard = await request("/api/dashboards/activity");
   const dashboardCase = dashboard.data.items?.find((item) => item.id === caseId);
   if (!dashboard.response.ok || !dashboardCase || dashboardCase.lastMovement !== "Movimiento de prueba" || dashboardCase.daysWithoutMovement !== 0) throw new Error("movement dashboard aggregation failed");
@@ -294,7 +303,7 @@ try {
   const oldPasswordLogin = await request("/api/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, password }) });
   if (oldPasswordLogin.response.status !== 401) throw new Error("old password should stop working after change");
 
-  console.log("SMOKE_OK: auth, cambio de contraseña, casos, importación, backup/merge, actualización masiva, agenda, inbox, novedades, contactos, extrajudicial, finanzas, dashboards, reportes guardados, notas, archivos y módulos CRUD");
+  console.log("SMOKE_OK: auth, cambio de contraseña, casos, importación, backup/merge, actualización masiva, agenda, inbox, novedades y etiquetas, contactos, extrajudicial, finanzas, dashboards, reportes guardados, notas, archivos y módulos CRUD");
 } finally {
   if (documentEntryId && caseId && cookie) {
     await request(`/api/cases/${caseId}/entries/documents/${documentEntryId}`, { method: "DELETE" }).catch(() => undefined);

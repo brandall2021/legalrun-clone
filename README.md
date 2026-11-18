@@ -122,6 +122,10 @@ npm run dev
   revisar movimientos, abrir la ficha asociada y exportar CSV. Reproduce las
   pestañas Notificaciones, Proveídos, Causas sin Movimiento, Documentos
   Presentados y Documentos no presentados, con sus estados y columnas principales.
+- El etiquetado asistido de Novedades funciona con reglas locales (sin IA
+  externa): detecta etiquetas como Traslado, Sentencia, Audiencia, Prueba o
+  Pago a partir del texto del movimiento, permite guardarlas en el expediente y
+  sugiere un estado judicial y un template para el escrito.
 - Las cargas masivas de Actualización masiva, Baja de juicios masivo y Nuevos
   juicios usan wizards con descarga de plantilla, drag & drop, validación y carga
   de CSV UTF-8; Nuevos juicios además conserva el paso de tipo de documento y
