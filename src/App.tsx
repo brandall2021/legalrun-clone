@@ -8,7 +8,15 @@ import { ProfilePage } from "./account/ProfilePage";
 import { FaqChatPage } from "./faq/FaqChatPage";
 import { buildSemaforoSummary, filterSemaforoItems, toSemaforoBucket, type SemaforoBucket } from "./semaforo";
 import { TemplatesPage } from "./templates/TemplatesPage";
-import { detectTags, suggestionForTags } from "./assistant/tagging";
+import { detectTags } from "./assistant/tagging";
+import { SuggestionRulesPage } from "./assistant/SuggestionRulesPage";
+import {
+  DEFAULT_SUGGESTION_RULES,
+  SUGGESTION_MODULE_KEY,
+  rulesFromRecords,
+  suggestionForLabels,
+  suggestionSummary,
+} from "./assistant/suggestionRules";
 
 type CaseField = { key: string; label: string; value: string; select?: boolean; inputType?: string };
 type CaseRecord = { id: string; fields: Record<string, string>; createdAt?: string; updatedAt?: string; followed?: boolean };
@@ -747,6 +755,8 @@ export default function App() {
             <UsersAdminPage onSaved={report} />
           ) : renderedRoute === "#/client/configuracion/template" ? (
             <TemplatesPage cases={cases} customFields={customFields} onSaved={report} />
+          ) : renderedRoute === "#/client/configuracion/suggested_movements" ? (
+            <SuggestionRulesPage states={judicialStates.length ? judicialStates : defaultJudicialStates} onSaved={report} />
           ) : renderedRoute === "#/client/configuracion/roles" ? (
             <RolesPage onSaved={report} />
           ) : renderedRoute === "#/client/configuracion/credentials" ? (
@@ -1796,6 +1806,20 @@ function MovementsPage({ cases, openCase, onSaved, globalPortfolio }: { cases: C
   const [busy, setBusy] = useState(false);
   const [refresh, setRefresh] = useState(0);
   const [taggingId, setTaggingId] = useState("");
+  const [suggestionRules, setSuggestionRules] = useState(DEFAULT_SUGGESTION_RULES);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/modules/${encodeURIComponent(SUGGESTION_MODULE_KEY)}`, { cache: "no-store" })
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok || cancelled || !data.initialized) return;
+        const parsed = rulesFromRecords(Array.isArray(data.records) ? data.records : []);
+        if (parsed.length) setSuggestionRules(parsed);
+      })
+      .catch(() => { /* se mantienen las reglas por defecto */ });
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -1854,7 +1878,7 @@ function MovementsPage({ cases, openCase, onSaved, globalPortfolio }: { cases: C
     finally { setTaggingId(""); }
   }
   const detectedTags = detectTags(`${title} ${description}`);
-  const detectedSuggestion = suggestionForTags(detectedTags.map((entry) => entry.label));
+  const detectedSuggestion = suggestionForLabels(detectedTags.map((entry) => entry.label), suggestionRules);
   const filtered = items.filter((item) => (!globalPortfolio || (cases.find((entry) => entry.id === item.caseId)?.fields.portfolio || "") === globalPortfolio) && (statusFilter === "all" || item.status === statusFilter) && `${item.caseNumber} ${item.caseTitle} ${item.title} ${item.description} ${item.court} ${item.user} ${(item.tags || []).join(" ")}`.toLowerCase().includes(filter.toLowerCase()));
   function exportCsv() {
     const rows = [["Fecha", "Expediente", "Carátula", "Movimiento", "Descripción", "Juzgado", "Usuario", "Estado", "Etiquetas"], ...filtered.map((item) => [item.date, item.caseNumber, item.caseTitle, item.title, item.description, item.court, item.user, item.status, (item.tags || []).join("; ")])];
@@ -1868,7 +1892,7 @@ function MovementsPage({ cases, openCase, onSaved, globalPortfolio }: { cases: C
   return <>
     <div className="page-title-row"><div><p className="eyebrow">TRABAJO DIARIO</p><h1>Novedades de juicios</h1><p className="muted">Movimientos consolidados desde los expedientes locales{globalPortfolio ? ` · filtrado por ${globalPortfolio}` : ""}.</p></div><div className="title-actions"><button className="secondary-button" onClick={exportCsv}>Exportar CSV</button><button className="primary-button" onClick={() => { resetForm(); setShowForm(true); }}>＋ Registrar movimiento</button></div></div>
     {error && <div className="inline-error" role="alert">{error}</div>}
-    {showForm && <section className="panel agenda-form-panel"><div className="panel-heading"><div><h3>Nuevo movimiento judicial</h3><p>Se guardará en la pestaña Novedades del caso seleccionado.</p></div></div><form className="agenda-form" onSubmit={(event) => void save(event)}><label className="field"><span>Expediente</span><select required value={caseId} onChange={(event) => setCaseId(event.target.value)}><option value="">Seleccionar expediente</option>{cases.filter((item) => !globalPortfolio || item.fields.portfolio === globalPortfolio).map((item) => <option key={item.id} value={item.id}>{item.fields.number || item.id} · {item.fields.title || "Caso local"}</option>)}</select></label><label className="field"><span>Fecha</span><input type="date" required value={date} onChange={(event) => setDate(event.target.value)} /></label><label className="field"><span>Movimiento</span><input required value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Ej. Presentación ingresada" /></label><label className="field agenda-detail"><span>Descripción</span><textarea rows={3} value={description} onChange={(event) => setDescription(event.target.value)} /></label>{detectedTags.length ? <div className="tag-suggestions"><span className="muted">Etiquetas detectadas: {detectedTags.map((entry) => entry.label).join(", ")}</span>{detectedSuggestion ? <span className="muted">Sugerencia local: estado «{detectedSuggestion.state}» · template «{detectedSuggestion.template}»</span> : null}</div> : null}<div className="modal-actions"><button type="button" className="secondary-button" onClick={() => { resetForm(); setShowForm(false); }}>Cancelar</button><button type="submit" className="primary-button" disabled={busy}>{busy ? "Guardando…" : "Guardar movimiento"}</button></div></form></section>}
+    {showForm && <section className="panel agenda-form-panel"><div className="panel-heading"><div><h3>Nuevo movimiento judicial</h3><p>Se guardará en la pestaña Novedades del caso seleccionado.</p></div></div><form className="agenda-form" onSubmit={(event) => void save(event)}><label className="field"><span>Expediente</span><select required value={caseId} onChange={(event) => setCaseId(event.target.value)}><option value="">Seleccionar expediente</option>{cases.filter((item) => !globalPortfolio || item.fields.portfolio === globalPortfolio).map((item) => <option key={item.id} value={item.id}>{item.fields.number || item.id} · {item.fields.title || "Caso local"}</option>)}</select></label><label className="field"><span>Fecha</span><input type="date" required value={date} onChange={(event) => setDate(event.target.value)} /></label><label className="field"><span>Movimiento</span><input required value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Ej. Presentación ingresada" /></label><label className="field agenda-detail"><span>Descripción</span><textarea rows={3} value={description} onChange={(event) => setDescription(event.target.value)} /></label>{detectedTags.length ? <div className="tag-suggestions"><span className="muted">Etiquetas detectadas: {detectedTags.map((entry) => entry.label).join(", ")}</span>{detectedSuggestion ? <span className="muted">Sugerencia local: {suggestionSummary(detectedSuggestion)}</span> : null}</div> : null}<div className="modal-actions"><button type="button" className="secondary-button" onClick={() => { resetForm(); setShowForm(false); }}>Cancelar</button><button type="submit" className="primary-button" disabled={busy}>{busy ? "Guardando…" : "Guardar movimiento"}</button></div></form></section>}
     <section className="tabs-row" role="tablist" aria-label="Tipos de novedades">
       {tabsRow.map((tabName) => <button key={tabName} role="tab" aria-selected={tab === tabName} className={tab === tabName ? "tab active-tab" : "tab"} onClick={() => setTab(tabName)}>{tabName}</button>)}
     </section>

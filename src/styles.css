@@ -128,3 +128,7 @@ select:focus{outline:2px solid #233a5e22;border-color:#233a5e}
 .template-modal textarea{width:100%;padding:11px 12px;border:1px solid var(--border);border-radius:8px;font:inherit;font-size:13px;color:#243044;resize:vertical}
 
 .tag-suggestions{display:flex;flex-wrap:wrap;gap:10px;padding:10px 12px;border:1px solid #dbe4f1;border-radius:8px;background:#f7f9fc}
+
+.suggestion-hint{margin:8px 0 0}
+.check-field{display:flex;align-items:center;gap:9px;font-size:12px;color:#40506a}
+.check-field input{width:16px;height:16px}

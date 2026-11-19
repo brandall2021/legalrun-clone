@@ -126,6 +126,9 @@ npm run dev
   externa): detecta etiquetas como Traslado, Sentencia, Audiencia, Prueba o
   Pago a partir del texto del movimiento, permite guardarlas en el expediente y
   sugiere un estado judicial y un template para el escrito.
+- `Sugerencias por etiqueta` (`#/client/configuracion/suggested_movements`)
+  permite editar esas reglas: etiqueta, estado, subestado y template. Las reglas
+  se guardan en SQLite y alimentan la sugerencia que muestra Novedades.
 - Las cargas masivas de Actualización masiva, Baja de juicios masivo y Nuevos
   juicios usan wizards con descarga de plantilla, drag & drop, validación y carga
   de CSV UTF-8; Nuevos juicios además conserva el paso de tipo de documento y
